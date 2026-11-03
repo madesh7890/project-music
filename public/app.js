@@ -361,9 +361,71 @@ class MusicApp {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
+
+      // Detect mobile to avoid heavy DSP chain causing crackling/underruns
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+
       if (!this.audioCtx) {
-        this.audioCtx = new AudioContext();
+        // Explicit sampleRate to prevent crackling from mismatch on mobile
+        try {
+          this.audioCtx = new AudioContext({ sampleRate: isMobile ? 44100 : 48000 });
+        } catch (e) {
+          this.audioCtx = new AudioContext();
+        }
       }
+
+      // ── MOBILE LIGHTWEIGHT MODE ─────────────────────────────────────────
+      // On mobile: skip heavy convolver, spatial delay, multi-filter chain.
+      // Only keep: source → inputGain → bassFilter → masterGain → compressor → destination
+      if (isMobile) {
+        this.inputGain = this.audioCtx.createGain();
+        this.inputGain.gain.value = 0.9;
+
+        this.bassFilter = this.audioCtx.createBiquadFilter();
+        this.bassFilter.type = 'lowshelf';
+        this.bassFilter.frequency.value = 80;
+        this.bassFilter.gain.value = this.bassBoostGain;
+
+        this.compressor = this.audioCtx.createDynamicsCompressor();
+        this.compressor.threshold.setValueAtTime(-6, this.audioCtx.currentTime);
+        this.compressor.knee.setValueAtTime(8, this.audioCtx.currentTime);
+        this.compressor.ratio.setValueAtTime(4, this.audioCtx.currentTime);
+        this.compressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
+        this.compressor.release.setValueAtTime(0.25, this.audioCtx.currentTime);
+
+        this.masterGain = this.audioCtx.createGain();
+        this.masterGain.gain.value = 1.0;
+
+        // Dummy stubs for desktop-only nodes (mobile skips them)
+        this.vocalFilter = null;
+        this.eqFilters = [];
+        this.spatialDryGain = null;
+        this.spatialWetGain = null;
+        this.splitter = null;
+        this.merger = null;
+        this.delayLeft = null;
+        this.delayRight = null;
+        this.dolbyConvolver = null;
+        this.dolbyGain = null;
+        this.fidelityCutoffFilter = null;
+        this.fidelityAirFilter = null;
+        this.fidelityWarmthFilter = null;
+        this.fidelityPresenceFilter = null;
+
+        // Wire: source → inputGain → bassFilter → compressor → masterGain → destination
+        this.audioSource = this.audioCtx.createMediaElementSource(this.audio);
+        this.audioSource.connect(this.inputGain);
+        this.inputGain.connect(this.bassFilter);
+        this.bassFilter.connect(this.compressor);
+        this.compressor.connect(this.masterGain);
+        this.masterGain.connect(this.audioCtx.destination);
+
+        this.isDspInit = true;
+        console.log('🎵 Mobile DSP: lightweight mode active (no spatial/reverb/convolver)');
+        return;
+      }
+      // ── END MOBILE LIGHTWEIGHT MODE ─────────────────────────────────────
 
       // Master Input Headroom Gain (prevents digital clipping/distortion when EQ is boosted)
       this.inputGain = this.audioCtx.createGain();
@@ -800,6 +862,56 @@ class MusicApp {
         }
       }
     });
+
+    // ── MOBILE STALL & BUFFER RECOVERY ──────────────────────────────────
+    // Fires when browser can't fetch more data (network hiccup / slow mobile)
+    this.audio.addEventListener('stalled', () => {
+      console.warn('⚠️ Audio stalled — scheduling recovery...');
+      if (!this._stalledTimer && this.currentSong) {
+        this._stalledTimer = setTimeout(() => {
+          if (this.audio.readyState < 3 && !this.audio.paused) {
+            const t = this.audio.currentTime;
+            const src = this.audio.src;
+            console.warn('🔄 Stall recovery: reloading stream at', t.toFixed(2) + 's');
+            this.audio.src = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
+            this.audio.load();
+            this.audio.currentTime = t;
+            this.audio.play().catch(() => {});
+          }
+          this._stalledTimer = null;
+        }, 3500);
+      }
+    });
+
+    // Fires when browser is buffering (spinner) — auto-recover after 4s
+    this.audio.addEventListener('waiting', () => {
+      if (!this._waitingTimer && this.currentSong) {
+        this._waitingTimer = setTimeout(() => {
+          if (this.audio.readyState < 3 && !this.audio.paused) {
+            const t = this.audio.currentTime;
+            const src = this.audio.src;
+            console.warn('🔄 Waiting recovery: reloading at', t.toFixed(2) + 's');
+            this.audio.src = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
+            this.audio.load();
+            this.audio.currentTime = t;
+            this.audio.play().catch(() => {});
+          }
+          this._waitingTimer = null;
+        }, 4000);
+      }
+    });
+
+    // Clear all stall timers once audio is playing smoothly
+    this.audio.addEventListener('playing', () => {
+      if (this._stalledTimer) { clearTimeout(this._stalledTimer); this._stalledTimer = null; }
+      if (this._waitingTimer) { clearTimeout(this._waitingTimer); this._waitingTimer = null; }
+    });
+
+    this.audio.addEventListener('canplay', () => {
+      if (this._stalledTimer) { clearTimeout(this._stalledTimer); this._stalledTimer = null; }
+      if (this._waitingTimer) { clearTimeout(this._waitingTimer); this._waitingTimer = null; }
+    });
+    // ── END MOBILE STALL & BUFFER RECOVERY ──────────────────────────────
   }
 
   updatePlayStateUI() {
@@ -1133,6 +1245,7 @@ class MusicApp {
         if (input) input.checked = true;
         
         this.currentFormat = input.value;
+        this._userSetFormat = true; // User manually chose — don't auto-downgrade on mobile
         localStorage.setItem('music_format', this.currentFormat);
         this.updateQualityUI();
         this.qualityModal.classList.remove('active');
@@ -1482,6 +1595,16 @@ class MusicApp {
     }
 
     this.currentSong = song;
+
+    // Auto-downgrade to 480p (160kbps) on mobile for first play IF user hasn't manually chosen a format
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+    if (isMobile && !this._userSetFormat && (this.currentFormat === '4k' || this.currentFormat === '720p')) {
+      // Default mobile to 480p balanced — less buffering, no crackling from large chunks
+      this.currentFormat = '480p';
+      this.updateQualityUI();
+    }
+
     const audioUrl = this.getStreamUrlForFormat(song, this.currentFormat);
 
     // Ensure volume is unmuted and audible

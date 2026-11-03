@@ -904,6 +904,8 @@ app.use('/api/proxy-audio', (req, res) => {
     outHeaders['access-control-allow-headers'] = 'Range, Origin, Accept, Content-Type';
     outHeaders['access-control-expose-headers'] = 'Content-Range, Content-Length, Accept-Ranges';
     outHeaders['accept-ranges'] = 'bytes';
+    // Cache-Control: allow browser to cache audio chunks for 1hr (reduces mobile re-fetches)
+    outHeaders['cache-control'] = 'public, max-age=3600';
 
     if (reqFormat === 'mp3') {
       outHeaders['content-type'] = 'audio/mpeg';
@@ -913,8 +915,19 @@ app.use('/api/proxy-audio', (req, res) => {
     if (req.method === 'HEAD') {
       res.end();
     } else {
-      proxyRes.pipe(res);
+      // highWaterMark: larger internal buffer helps mobile handle jitter (512KB)
+      proxyRes.pipe(res, { highWaterMark: 524288 });
     }
+  });
+
+  // Socket optimizations: disable Nagle algorithm for low-latency streaming
+  clientReq.on('socket', (socket) => {
+    socket.setNoDelay(true);
+    socket.setTimeout(30000);
+    socket.on('timeout', () => {
+      console.warn('Audio proxy socket timeout — destroying');
+      clientReq.destroy();
+    });
   });
 
   req.on('close', () => {
