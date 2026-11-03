@@ -2,88 +2,134 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>RaagaStream | நாதாலயா - Old & New Tamil, Malayalam & Indian Music</title>
-  <meta name="description" content="Stream all old to new Tamil, Malayalam, Hindi, and English songs with 320kbps HD audio and unique vinyl player experience.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>MUSIC</title>
+  <meta name="description" content="MUSIC - Stream old to new Tamil, Malayalam, Hindi, Telugu, and English songs with 320kbps MP4/MP3 quality, 3D Spatial Audio, and Dolby Atmos.">
+  <meta name="theme-color" content="#121212">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Circular+Std:wght@400;500;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <!-- Instant Auth Guard (Zero-Flash Redirect) -->
+  <script>
+    (function() {
+      try {
+        var session = JSON.parse(localStorage.getItem('music_auth_session'));
+        if (!session || !session.user || !session.token) {
+          window.location.replace('/auth.html');
+        }
+      } catch (e) {
+        window.location.replace('/auth.html');
+      }
+    })();
+  </script>
 </head>
-<body class="theme-obsidian">
+<body class="spotify-theme">
   <!-- Dynamic Ambient Glow Layer -->
   <div id="ambientBackdrop" class="ambient-backdrop"></div>
 
   <!-- App Wrapper -->
   <div class="app-layout">
     
-    <!-- Left Navigation / Sidebar -->
+    <!-- Left Navigation / Sidebar (Desktop & Tablet) -->
     <aside class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon">
-          <span class="music-wave-bar"></span>
-          <span class="music-wave-bar"></span>
-          <span class="music-wave-bar"></span>
-          <span class="music-wave-bar"></span>
+        <div class="spotify-logo-icon">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.496 17.306c-.215.352-.676.463-1.028.247-2.817-1.722-6.363-2.112-10.54-1.157-.402.092-.803-.16-.895-.562-.092-.403.16-.804.563-.896 4.573-1.045 8.492-.596 11.652 1.34.353.216.464.676.248 1.028zm1.468-3.262c-.27.44-.848.58-1.288.31-3.225-1.982-8.14-2.557-11.954-1.399-.498.151-1.03-.133-1.18-.631-.152-.499.132-1.03.63-1.182 4.364-1.325 9.784-.683 13.483 1.594.44.27.58.848.309 1.288zm.126-3.41c-3.867-2.296-10.248-2.508-13.941-1.387-.593.18-1.22-.162-1.4-.755-.18-.593.162-1.22.755-1.4 4.246-1.29 11.285-1.044 15.733 1.597.533.316.707 1.01.392 1.543-.316.533-1.01.707-1.539.402z"/>
+          </svg>
         </div>
         <div class="brand-text">
-          <span class="brand-name">RAAGA<span class="accent-text">STREAM</span></span>
-          <span class="brand-sub">நாதாலயா • Old to New</span>
+          <h1 class="brand-title">MUSIC</h1>
         </div>
       </div>
 
       <nav class="nav-menu">
-        <div class="nav-section-title">DISCOVER</div>
         <button class="nav-item active" data-view="home" id="navHome">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h5v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6h5V7.577l-7.5-4.33zm-8.5 3.82 8-4.62 8 4.62V21a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-5h-2v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7.067z"/></svg>
           <span>Home</span>
         </button>
         <button class="nav-item" data-view="search" id="navSearch">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <span>Search & Explore</span>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span>Search</span>
         </button>
         <button class="nav-item" data-view="favorites" id="navFavorites">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg>
-          <span>Liked Songs</span>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span>Your Library</span>
           <span class="badge" id="favoritesCount">0</span>
         </button>
-        <button class="nav-item" data-view="history" id="navHistory">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-          <span>Recently Played</span>
+
+        <div class="nav-divider"></div>
+
+        <div class="nav-section-title">AUDIO ENGINE</div>
+        <button class="nav-item audio-fx-nav-btn" id="navAudioFX">
+          <div class="fx-icon-pill">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+          </div>
+          <span>Spatial Audio & 3D</span>
+          <span class="active-dot" id="spatialAudioIndicator"></span>
         </button>
 
-        <div class="nav-section-title">POPULAR ERAS</div>
+        <button class="nav-item bluetooth-status-btn" id="navBluetooth">
+          <div class="fx-icon-pill bt-pill">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline></svg>
+          </div>
+          <span id="navBluetoothText">Bluetooth / Audio</span>
+        </button>
+
+        <div class="nav-section-title">YOUR PLAYLISTS</div>
+        <button class="nav-item create-playlist-btn" id="sidebarCreatePlaylistBtn">
+          <div class="fx-icon-pill" style="background:rgba(255,255,255,0.1);color:#fff;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </div>
+          <span>Create Playlist</span>
+        </button>
+        <div id="sidebarPlaylistsList" class="sidebar-playlists-list"></div>
+
+        <div class="nav-divider"></div>
+
+        <div class="nav-section-title">ERA COLLECTIONS</div>
         <button class="nav-item tag-nav" data-query="Ilaiyaraaja 80s 90s Tamil Hits">
           <span class="era-icon">🎼</span>
           <span>Ilaiyaraaja 80s & 90s</span>
         </button>
         <button class="nav-item tag-nav" data-query="SPB Evergreen Tamil Melodies">
           <span class="era-icon">🎙️</span>
-          <span>SPB Gold Classics</span>
+          <span>SPB Immortal Gold</span>
         </button>
         <button class="nav-item tag-nav" data-query="A.R. Rahman 90s 2000s Hits">
           <span class="era-icon">💎</span>
-          <span>A.R. Rahman Hits</span>
+          <span>A.R. Rahman Magic</span>
         </button>
         <button class="nav-item tag-nav" data-query="Anirudh Ravichander Blockbuster Hits">
           <span class="era-icon">⚡</span>
-          <span>Anirudh Beats</span>
+          <span>Anirudh Party Hits</span>
         </button>
         <button class="nav-item tag-nav" data-query="Malayalam Superhits Aavesham">
           <span class="era-icon">🌴</span>
           <span>Malayalam Hits</span>
         </button>
+
+        <div class="nav-divider"></div>
+
+        <button class="nav-item pwa-install-nav-btn" id="sidebarPwaInstallBtn">
+          <div class="fx-icon-pill" style="background:rgba(30,215,96,0.15);color:#1ed760;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+          </div>
+          <span>Install MUSIC App</span>
+        </button>
       </nav>
 
-      <!-- Now Playing Mini Card in Sidebar -->
+      <!-- Sidebar Now Playing Preview Card -->
       <div class="sidebar-mini-player" id="sidebarMiniPlayer">
         <div class="mini-cover-wrapper">
           <img id="sidebarCover" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop" alt="Album Art">
-          <div class="vinyl-spin-ring"></div>
         </div>
         <div class="mini-info">
-          <div class="mini-title" id="sidebarTitle">Ready to Play</div>
-          <div class="mini-artist" id="sidebarArtist">Select any song</div>
+          <div class="mini-title" id="sidebarTitle">Select a Song</div>
+          <div class="mini-artist" id="sidebarArtist">Ready to stream in 320k</div>
         </div>
       </div>
     </aside>
@@ -91,108 +137,90 @@
     <!-- Main Content Area -->
     <main class="main-content" id="mainContent">
       
-      <!-- Top App Bar with Search & Language Filters -->
+      <!-- Top App Bar -->
       <header class="top-header">
-        <div class="mobile-toggle" id="mobileMenuBtn">
-          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" fill="none" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        </div>
-
-        <!-- Omnisearch Bar -->
-        <div class="search-container">
+        <div class="header-left">
+          <div class="mobile-brand-title">MUSIC</div>
+          <!-- Omnisearch Bar -->
           <div class="search-box">
-            <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input 
               type="text" 
               id="searchInput" 
-              placeholder="Search any song, movie name (e.g. Leo, Aavesham, Kadavul Amaithu Vaitha, Ilayaraja)..." 
+              placeholder="What do you want to play? (Song, movie, singer, Ilayaraja, Aavesham...)" 
               autocomplete="off"
             >
             <div class="search-actions">
-              <button class="clear-search-btn" id="clearSearchBtn" title="Clear search">✕</button>
+              <button class="clear-search-btn" id="clearSearchBtn" title="Clear">✕</button>
               <div class="search-loader" id="searchLoader"></div>
-              <span class="shortcut-pill">/</span>
             </div>
           </div>
         </div>
 
         <div class="header-right">
-          <!-- 3D Spatial Audio Earbuds Button -->
-          <button class="icon-button spatial-btn" id="spatialAudioHeaderBtn" title="3D Spatial Audio & Earbuds Immersion">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-              <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-            </svg>
-            <span class="btn-text">3D Spatial</span>
-            <span class="spatial-indicator" id="spatialHeaderIndicator"></span>
+          <!-- Sleep Timer Pill -->
+          <button class="header-action-pill" id="openSleepModalBtn" title="Bedtime Sleep Timer">
+            <span class="pill-icon">💤</span>
+            <span id="headerSleepBadge">TIMER</span>
           </button>
 
-          <!-- Audio Bitrate Quality Pill -->
-          <div class="quality-selector" title="Audio Quality">
-            <span class="hd-badge">320 KBPS</span>
-            <select id="qualitySelect">
-              <option value="320" selected>Ultra HD (320kbps)</option>
-              <option value="160">High (160kbps)</option>
-              <option value="96">Data Saver (96kbps)</option>
-            </select>
-          </div>
+          <!-- PWA Install Button -->
+          <button class="header-action-pill pwa-pill" id="headerPwaInstallBtn" title="Install MUSIC App on your Device">
+            <span class="pill-icon">📱</span>
+            <span>INSTALL</span>
+          </button>
 
-          <!-- Vinyl Mode Modal Toggle -->
-          <button class="icon-button" id="vinylModeBtn" title="Open 3D Vinyl Turntable">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M12 2a10 10 0 0 1 10 10"></path>
-            </svg>
-            <span class="btn-text">Vinyl View</span>
+          <!-- Audio Quality & Resolution Pill -->
+          <button class="quality-pill-btn" id="openQualityModalBtn" title="Choose Audio Quality (MP4 Hi-Res 320k, 4K Master, MP3, etc.)">
+            <span class="format-badge" id="headerFormatBadge">MP4</span>
+            <span class="bitrate-badge" id="headerBitrateBadge">HI-RES 320K</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+          </button>
+
+          <!-- Spatial Audio & Dolby Atmos Trigger Pill -->
+          <button class="audio-fx-pill-btn" id="openAudioFXBtn" title="Open Spatial Audio, 3D Sound &amp; Dolby Atmos Controls">
+            <span class="fx-pulse-dot"></span>
+            <span class="fx-pill-text">SPATIAL 3D • DOLBY</span>
+          </button>
+
+          <!-- User Profile Avatar Pill -->
+          <button class="user-avatar-pill" id="userAvatarBtn" title="My Account">
+            <span class="user-avatar-letter" id="userAvatarLetter">M</span>
+            <span class="user-name-text" id="userNameText">Account</span>
           </button>
         </div>
       </header>
 
-      <!-- Language Quick Switcher Tabs -->
+      <!-- Category Filter Pills (Spotify Style) -->
       <section class="language-bar">
-        <button class="lang-tab active" data-lang="all">
-          <span class="lang-dot"></span> All
-        </button>
-        <button class="lang-tab" data-lang="tamil">
-          <span class="lang-dot"></span> தமிழ் (Tamil)
-        </button>
-        <button class="lang-tab" data-lang="malayalam">
-          <span class="lang-dot"></span> മലയാളം (Malayalam)
-        </button>
-        <button class="lang-tab" data-lang="telugu">
-          <span class="lang-dot"></span> తెలుగు (Telugu)
-        </button>
-        <button class="lang-tab" data-lang="hindi">
-          <span class="lang-dot"></span> हिंदी (Hindi)
-        </button>
-        <button class="lang-tab" data-lang="english">
-          <span class="lang-dot"></span> English
-        </button>
-        <button class="lang-tab" data-lang="retro">
-          <span class="lang-dot"></span> 📻 80s & 90s Retro
-        </button>
+        <button class="lang-tab active" data-lang="all">All</button>
+        <button class="lang-tab" data-lang="tamil">தமிழ் (Tamil)</button>
+        <button class="lang-tab" data-lang="malayalam">മലയാളം (Malayalam)</button>
+        <button class="lang-tab" data-lang="telugu">తెలుగు (Telugu)</button>
+        <button class="lang-tab" data-lang="hindi">हिंदी (Hindi)</button>
+        <button class="lang-tab" data-lang="english">English</button>
+        <button class="lang-tab" data-lang="retro">📻 80s & 90s Retro</button>
       </section>
 
       <!-- Quick Search Suggestion Tags -->
       <section class="quick-tags-bar">
-        <span class="quick-tag-label">Trending Searches:</span>
+        <span class="quick-tag-label">Trending:</span>
         <button class="quick-tag" data-query="Leo Tamil songs">🔥 Leo</button>
-        <button class="quick-tag" data-query="Illuminati Aavesham Malayalam">🌴 Aavesham (Illuminati)</button>
+        <button class="quick-tag" data-query="Illuminati Aavesham Malayalam">🌴 Illuminati (Aavesham)</button>
         <button class="quick-tag" data-query="Ilaiyaraaja 80s Evergreen Tamil Hits">🎼 Ilaiyaraaja 80s</button>
         <button class="quick-tag" data-query="Hukum Jailer Anirudh">⚡ Jailer (Hukum)</button>
         <button class="quick-tag" data-query="Manjummel Boys Malayalam">🎬 Manjummel Boys</button>
         <button class="quick-tag" data-query="SPB Tamil Evergreen Melodies">💖 SPB Hits</button>
         <button class="quick-tag" data-query="Kadavul Amaithu Vaitha SPB">📻 Kadavul Amaithu Vaitha</button>
         <button class="quick-tag" data-query="AR Rahman 90s Tamil Hits">💎 AR Rahman 90s</button>
-        <button class="quick-tag" data-query="Devara Telugu Tamil">🌊 Devara</button>
       </section>
 
       <!-- Search Results Section (Shown immediately when searching) -->
       <section class="search-results-section" id="searchResultsSection" style="display: none;">
         <div class="section-header">
           <div>
-            <h2 class="section-title" id="searchResultsTitle">Search Results</h2>
-            <p class="section-subtitle" id="searchResultsSubtitle">Found songs for your search</p>
+            <h2 class="section-title" id="searchResultsTitle">Top Results</h2>
+            <p class="section-subtitle" id="searchResultsSubtitle">Playable songs from old to new</p>
           </div>
           <button class="close-search-btn" id="closeSearchSectionBtn">✕ Back to Home</button>
         </div>
@@ -206,32 +234,33 @@
         <section class="hero-banner" id="heroBanner">
           <div class="hero-backdrop" id="heroBackdrop"></div>
           <div class="hero-content">
-            <div class="hero-badge">🌟 SPOTLIGHT OF THE DAY</div>
-            <h1 class="hero-title" id="heroTitle">Leo - Naa Ready</h1>
+            <div class="hero-badge">FEATURED SPOTLIGHT</div>
+            <h2 class="hero-title" id="heroTitle">Leo - Naa Ready</h2>
             <p class="hero-subtitle" id="heroSubtitle">Anirudh Ravichander • Thalapathy Vijay</p>
-            <p class="hero-desc" id="heroDesc">From evergreen vintage 80s Ilaiyaraaja melodies to latest 2026 blockbuster chartbusters. Stream seamlessly in 320kbps HD.</p>
+            <p class="hero-desc" id="heroDesc">Master quality 320kbps MP4/AAC & MP3 streaming with immersive 3D Spatial Audio and Dolby Atmos cinema sound.</p>
             <div class="hero-buttons">
               <button class="btn btn-primary" id="heroPlayBtn">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                 <span>Play Now</span>
               </button>
               <button class="btn btn-secondary" id="heroQueueBtn">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span>Add to Queue</span>
               </button>
             </div>
           </div>
           <div class="hero-artwork">
             <div class="artwork-frame">
-              <img id="heroImage" src="https://c.saavncdn.com/415/Leo-Original-Motion-Picture-Soundtrack-English-2023-20231019170311-500x500.jpg" alt="Featured Album Art">
-              <div class="vinyl-glow"></div>
+              <img id="heroImage" src="https://c.saavncdn.com/415/Leo-Original-Motion-Picture-Soundtrack-English-2023-20231019170311-500x500.jpg" alt="Album Art">
+              <div class="hero-play-circle">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="#000"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+              </div>
             </div>
           </div>
         </section>
 
-        <!-- Curated Shelves (Populated dynamically) -->
+        <!-- Curated Shelves Container -->
         <div id="shelvesContainer" class="shelves-container">
-          <!-- Skeleton Loading Placeholders -->
           <div class="shelf-skeleton">
             <div class="skeleton-title"></div>
             <div class="skeleton-row">
@@ -246,36 +275,60 @@
 
       </div>
 
-      <!-- Liked Songs / History View (Hidden by default) -->
+      <!-- Liked Songs / Playlists / History View -->
       <section class="custom-view" id="customView" style="display: none;">
+        <div class="library-nav-tabs">
+          <button class="lib-tab-btn active" id="libTabFavorites">❤️ Liked Songs</button>
+          <button class="lib-tab-btn" id="libTabPlaylists">📁 Custom Playlists</button>
+          <button class="lib-tab-btn" id="libTabHistory">🕒 Recently Played</button>
+        </div>
         <div class="section-header">
           <div>
-            <h2 class="section-title" id="customViewTitle">Liked Songs</h2>
-            <p class="section-subtitle" id="customViewSubtitle">Your favorite collection</p>
+            <h2 class="section-title" id="customViewTitle">Your Library</h2>
+            <p class="section-subtitle" id="customViewSubtitle">Liked and saved tracks</p>
           </div>
           <div class="custom-view-actions">
             <button class="btn btn-primary" id="playAllCustomBtn">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               <span>Play All</span>
+            </button>
+            <button class="btn btn-secondary" id="createPlaylistBtn">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              <span>➕ New Playlist</span>
             </button>
           </div>
         </div>
+        <div class="playlists-grid" id="playlistsGrid" style="display: none;"></div>
         <div class="songs-grid" id="customViewGrid"></div>
       </section>
 
     </main>
 
-    <!-- Up Next Queue Slide-over Drawer -->
+    <!-- Up Next Queue Drawer -->
     <aside class="queue-drawer" id="queueDrawer">
       <div class="queue-header">
         <div class="queue-title-wrap">
-          <h3>Up Next Queue</h3>
+          <h3>Play Queue</h3>
           <span class="queue-count" id="queueCount">0 songs</span>
         </div>
         <div class="queue-actions">
           <button class="btn-text-sm" id="clearQueueBtn">Clear</button>
           <button class="close-queue-btn" id="closeQueueBtn">✕</button>
         </div>
+      </div>
+      <!-- Endless Smart Radio Toggle -->
+      <div class="smart-radio-card">
+        <div class="smart-radio-info">
+          <div class="smart-radio-title">
+            <span>📻 Endless Smart Radio</span>
+            <span class="smart-radio-badge">AUTO-PLAY</span>
+          </div>
+          <div class="smart-radio-desc">Continuously auto-queues similar Tamil / Indian hits when queue ends</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggleSmartRadio" checked>
+          <span class="slider round"></span>
+        </label>
       </div>
       <div class="queue-list" id="queueList">
         <div class="empty-queue-msg">Queue is empty. Click "+ Queue" on any song to add it!</div>
@@ -284,49 +337,46 @@
 
   </div>
 
-  <!-- Persistent Bottom Audio Player Bar -->
+  <!-- Persistent Spotify Bottom Player Bar -->
   <footer class="player-bar" id="playerBar">
     
-    <!-- Player Track Info (Left) -->
-    <div class="player-track">
-      <div class="track-thumb-wrapper" id="openVinylFromThumb" title="Click to view Turntable & Lyrics">
+    <!-- Left Track Details -->
+    <div class="player-track" id="openNowPlayingFromThumb">
+      <div class="track-thumb-wrapper">
         <img id="playerThumb" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop" alt="Now Playing">
-        <div class="thumb-hover-overlay">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-        </div>
       </div>
       <div class="track-details">
-        <div class="track-title" id="playerTitle">No Track Playing</div>
-        <div class="track-subtitle" id="playerArtist">Search and select any song to play</div>
+        <div class="track-title" id="playerTitle">MUSIC</div>
+        <div class="track-subtitle" id="playerArtist">Select any song to stream</div>
       </div>
-      <button class="fav-btn" id="playerFavBtn" title="Like Song">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg>
+      <button class="fav-btn" id="playerFavBtn" title="Save to Your Library">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
       </button>
     </div>
 
-    <!-- Center Playback Controls & Progress Bar -->
+    <!-- Center Playback Controls -->
     <div class="player-center">
       <div class="playback-controls">
-        <button class="control-btn" id="shuffleBtn" title="Shuffle">
+        <button class="control-btn" id="shuffleBtn" title="Enable Shuffle">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
         </button>
-        <button class="control-btn" id="prevBtn" title="Previous Song">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"></line></svg>
+        <button class="control-btn" id="prevBtn" title="Previous">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"></line></svg>
         </button>
-        <button class="play-pause-btn" id="playPauseBtn" title="Play/Pause">
-          <svg class="play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        <button class="play-pause-btn" id="playPauseBtn" title="Play">
+          <svg class="play-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
           <svg class="pause-icon" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
         </button>
-        <button class="control-btn" id="nextBtn" title="Next Song">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"></line></svg>
+        <button class="control-btn" id="nextBtn" title="Next">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"></line></svg>
         </button>
-        <button class="control-btn" id="repeatBtn" title="Repeat (Off/All/One)">
+        <button class="control-btn" id="repeatBtn" title="Repeat">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
           <span class="repeat-one-badge" id="repeatOneBadge">1</span>
         </button>
       </div>
 
-      <!-- Scrubber Timeline -->
+      <!-- Scrubber Progress Bar -->
       <div class="progress-container">
         <span class="time-text" id="currentTime">0:00</span>
         <div class="progress-bar-wrapper" id="progressWrapper">
@@ -338,27 +388,36 @@
       </div>
     </div>
 
-    <!-- Right Controls: Volume, Audio Visualizer, Queue Toggle, Fullscreen -->
+    <!-- Right Controls: Audio FX, Quality, Speed, Sleep, Share, Volume, Queue, Download, Expand -->
     <div class="player-right">
       
-      <!-- 3D Spatial Audio Earbuds Quick Button -->
-      <button class="icon-button-sm spatial-player-btn" id="spatialAudioPlayerBtn" title="3D Spatial Audio & Earbuds Immersion">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-        </svg>
-        <span class="spatial-mini-dot" id="spatialPlayerDot"></span>
+      <!-- Audio FX Button -->
+      <button class="icon-button-sm fx-btn-indicator active-glow" id="playerAudioFXBtn" title="Spatial Audio & Dolby Atmos">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
       </button>
 
-      <!-- Mini Visualizer Bars -->
-      <div class="mini-equalizer" id="miniEqualizer" title="Audio Spectrum Visualizer">
-        <span class="eq-bar"></span>
-        <span class="eq-bar"></span>
-        <span class="eq-bar"></span>
-        <span class="eq-bar"></span>
-      </div>
+      <!-- Quality Format Badge -->
+      <button class="quality-badge-btn" id="playerQualityBadgeBtn" title="Audio Quality (4K, 720p, 1080p, 480p, 360p, 240p)">
+        <span id="playerQualityLabel">720p 320k</span>
+      </button>
 
-      <!-- Volume Control -->
+      <!-- Speed & Lo-Fi Slowed Button -->
+      <button class="icon-button-sm player-speed-btn" id="playerSpeedBtn" title="Speed & Lo-Fi Slowed+Reverb">
+        <span id="playerSpeedText">1.0x</span>
+      </button>
+
+      <!-- Sleep Timer Pill -->
+      <button class="icon-button-sm player-sleep-btn" id="playerSleepBtn" title="Bedtime Sleep Timer">
+        <span class="sleep-icon">💤</span>
+        <span class="sleep-pill-text" id="playerSleepText" style="display:none;"></span>
+      </button>
+
+      <!-- Social & WhatsApp Share Button -->
+      <button class="icon-button-sm player-share-btn" id="playerShareBtn" title="Share Song to WhatsApp / Link">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+      </button>
+
+      <!-- Volume Controls -->
       <div class="volume-container">
         <button class="icon-button-sm" id="volumeBtn" title="Mute/Unmute">
           <svg id="volumeIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
@@ -369,234 +428,681 @@
       </div>
 
       <!-- Queue Button -->
-      <button class="icon-button-sm" id="queueToggleBtn" title="Toggle Queue">
+      <button class="icon-button-sm" id="queueToggleBtn" title="Play Queue">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
       </button>
 
-      <!-- Expand Fullscreen / Vinyl Player Modal -->
-      <button class="icon-button-sm" id="expandPlayerBtn" title="Full Player & Vinyl Turntable">
+      <!-- Download Button -->
+      <button class="icon-button-sm player-download-btn" id="playerDownloadBtn" title="Download Song">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+
+      <!-- Fullscreen Expand Button -->
+      <button class="icon-button-sm" id="expandPlayerBtn" title="Full Screen Player">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
       </button>
 
     </div>
   </footer>
 
-  <!-- 3D Spatial Audio & Earbuds Immersion Modal -->
-  <div class="spatial-modal" id="spatialModal">
-    <div class="spatial-modal-backdrop" id="closeSpatialModalBackdrop"></div>
-    <div class="spatial-modal-container">
-      
-      <div class="spatial-modal-header">
-        <div class="spatial-header-title-wrap">
-          <div class="spatial-badge-pill">BINAURAL HRTF 3D ENGINE</div>
-          <h2>🎧 3D Spatial Audio & Earbuds Mode</h2>
-          <p>Immersive 360-degree spatial soundstage tuned for wired & Bluetooth earbuds</p>
-        </div>
-        <div class="spatial-header-controls">
-          <!-- Master Spatial Toggle -->
-          <label class="spatial-switch" title="Toggle Spatial Audio">
-            <input type="checkbox" id="spatialMasterToggle" checked>
-            <span class="spatial-switch-slider"></span>
-          </label>
-          <button class="close-modal-btn" id="closeSpatialModalBtn">✕</button>
+  <!-- Mobile Bottom Navigation Bar (Phone Only) -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav">
+    <button class="mobile-nav-item active" data-view="home" id="mNavHome">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h5v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6h5V7.577l-7.5-4.33zm-8.5 3.82 8-4.62 8 4.62V21a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-5h-2v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7.067z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="mobile-nav-item" data-view="search" id="mNavSearch">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <span>Search</span>
+    </button>
+    <button class="mobile-nav-item" data-view="favorites" id="mNavFavorites">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      <span>Your Library</span>
+    </button>
+    <button class="mobile-nav-item" id="mNavAudioFX">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+      <span>Audio FX</span>
+    </button>
+  </nav>
+
+  <!-- Fullscreen / Mobile Now Playing Sheet -->
+  <div class="now-playing-sheet" id="nowPlayingSheet">
+    <div class="sheet-header">
+      <button class="sheet-down-btn" id="closeNowPlayingSheetBtn">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+      </button>
+      <div class="sheet-title-info">
+        <span class="sheet-playing-from">PLAYING FROM SEARCH</span>
+        <span class="sheet-movie-title" id="sheetMovieTitle">Movie / Album</span>
+      </div>
+      <div class="sheet-header-actions">
+        <button class="sheet-more-btn" id="sheetSleepBtn" title="Bedtime Sleep Timer">
+          <span style="font-size:16px;">💤</span>
+        </button>
+        <button class="sheet-more-btn" id="sheetSpeedBtn" title="Speed & Lo-Fi Slowed">
+          <span style="font-size:14px; font-weight:700;" id="sheetSpeedText">1.0x</span>
+        </button>
+        <button class="sheet-more-btn" id="sheetShareBtn" title="Share Song to WhatsApp / Friends">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        </button>
+        <button class="sheet-more-btn" id="sheetAudioFXBtn" title="Audio FX">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+        </button>
+        <button class="sheet-more-btn sheet-download-btn" id="sheetDownloadBtn" title="Download Song">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="sheet-body">
+      <!-- Big HD Artwork with Reactive Audio Visualizer Canvas -->
+      <div class="sheet-artwork-wrapper">
+        <canvas id="audioVisualizerCanvas" class="audio-visualizer-canvas"></canvas>
+        <img id="sheetArtwork" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop" alt="Album Art">
+        <div class="sheet-audio-badges">
+          <span class="sheet-badge-item" id="sheetQualityBadge">MP4 320 KBPS</span>
+          <span class="sheet-badge-item spatial" id="sheetSpatialBadge">3D SPATIAL</span>
+          <span class="sheet-badge-item dolby" id="sheetDolbyBadge">DOLBY ATMOS</span>
         </div>
       </div>
 
-      <div class="spatial-modal-grid">
+      <!-- Song Meta -->
+      <div class="sheet-meta">
+        <div class="sheet-song-details">
+          <h2 class="sheet-song-title" id="sheetSongTitle">MUSIC</h2>
+          <p class="sheet-song-artist" id="sheetSongArtist">Select any song to play</p>
+        </div>
+        <button class="fav-btn-large" id="sheetFavBtn" title="Save to Your Library">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
+        </button>
+      </div>
+
+      <!-- Scrubber Timeline -->
+      <div class="sheet-scrubber">
+        <div class="sheet-progress-wrapper" id="sheetProgressWrapper">
+          <div class="sheet-progress-buffered" id="sheetBufferedBar"></div>
+          <div class="sheet-progress-current" id="sheetProgressBar"></div>
+          <div class="sheet-progress-thumb" id="sheetProgressThumb"></div>
+        </div>
+        <div class="sheet-time-row">
+          <span id="sheetCurrentTime">0:00</span>
+          <span id="sheetTotalDuration">0:00</span>
+        </div>
+      </div>
+
+      <!-- Sheet Controls -->
+      <div class="sheet-controls">
+        <button class="control-btn-lg" id="sheetShuffleBtn" title="Shuffle">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+        </button>
+        <button class="control-btn-lg" id="sheetPrevBtn" title="Previous">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="3"></line></svg>
+        </button>
+        <button class="sheet-play-pause-btn" id="sheetPlayPauseBtn" title="Play">
+          <svg class="play-icon" viewBox="0 0 24 24" width="28" height="28" fill="#000"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+          <svg class="pause-icon" viewBox="0 0 24 24" width="28" height="28" fill="#000" style="display:none;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+        </button>
+        <button class="control-btn-lg" id="sheetNextBtn" title="Next">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3"></line></svg>
+        </button>
+        <button class="control-btn-lg" id="sheetRepeatBtn" title="Repeat">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+          <span class="repeat-one-badge" id="sheetRepeatBadge">1</span>
+        </button>
+      </div>
+
+      <!-- Quick Audio FX Bar in Fullscreen Sheet -->
+      <div class="sheet-quick-fx-bar">
+        <button class="quick-fx-btn active" id="sheetToggleVisualizer">
+          <span class="quick-fx-icon">🌊</span>
+          <span>Waveform</span>
+        </button>
+        <button class="quick-fx-btn" id="sheetToggleSlowed">
+          <span class="quick-fx-icon">✨</span>
+          <span>Slowed+Reverb</span>
+        </button>
+        <button class="quick-fx-btn active" id="sheetToggle3D">
+          <span class="quick-fx-icon">🎧</span>
+          <span>3D Spatial</span>
+        </button>
+        <button class="quick-fx-btn active" id="sheetToggleDolby">
+          <span class="quick-fx-icon">🔊</span>
+          <span>Dolby Atmos</span>
+        </button>
+        <button class="quick-fx-btn active" id="sheetToggleBass">
+          <span class="quick-fx-icon">💥</span>
+          <span>Bass Boost</span>
+        </button>
+        <button class="quick-fx-btn" id="sheetToggleLyrics">
+          <span class="quick-fx-icon">🎤</span>
+          <span>Karaoke</span>
+        </button>
+      </div>
+
+      <!-- Real-Time Synchronized Karaoke Lyrics Container -->
+      <div class="sheet-lyrics-card" id="sheetLyricsCard" style="display: none;">
+        <div class="sheet-lyrics-header">
+          <div class="sheet-lyrics-title-wrap">
+            <h3>🎤 Real-Time Karaoke</h3>
+            <span class="lyrics-subtitle">Tap any line to seek playback</span>
+          </div>
+          <div class="sheet-lyrics-actions">
+            <button class="btn-text-sm" id="toggleLyricScriptBtn">Tamil / Tanglish</button>
+            <button class="btn-text-sm" id="closeSheetLyricsBtn">Close</button>
+          </div>
+        </div>
+        <div class="karaoke-lines-container" id="karaokeLinesContainer">
+          <div class="sheet-lyrics-content" id="sheetLyricsContent">Loading lyrics...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spatial Audio, 3D Sound & Dolby Atmos Modal -->
+  <div class="audio-fx-modal" id="audioFXModal">
+    <div class="modal-backdrop" id="closeAudioFXBackdrop"></div>
+    <div class="audio-fx-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">AUDIO DSP SUITE</div>
+          <h2>Spatial Audio & 3D Sound</h2>
+          <p class="dialog-subtitle">Engineered for Bluetooth Earbuds, Headphones & Soundbars</p>
+        </div>
+        <button class="close-dialog-btn" id="closeAudioFXBtn">✕</button>
+      </div>
+
+      <div class="dialog-body">
         
-        <!-- Left: Interactive 3D Sound Radar -->
-        <div class="spatial-radar-panel">
-          <div class="radar-header">
-            <span class="radar-label">360° SOUNDSTAGE RADAR</span>
-            <span class="radar-coords" id="radarCoords">Angle: 0° (Front)</span>
-          </div>
-
-          <div class="radar-stage" id="radarStage">
-            <div class="radar-circle circle-outer"></div>
-            <div class="radar-circle circle-mid"></div>
-            <div class="radar-circle circle-inner"></div>
-            <div class="radar-axis axis-horizontal"></div>
-            <div class="radar-axis axis-vertical"></div>
-            
-            <span class="radar-dir dir-f">FRONT</span>
-            <span class="radar-dir dir-r">RIGHT</span>
-            <span class="radar-dir dir-b">REAR</span>
-            <span class="radar-dir dir-l">LEFT</span>
-
-            <!-- Center Listener Head with Earbuds -->
-            <div class="listener-head" id="listenerHead">
-              <div class="earbud earbud-left"></div>
-              <div class="head-core">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-              </div>
-              <div class="earbud earbud-right"></div>
+        <!-- Bluetooth / Headphone Device Status Card -->
+        <div class="fx-card bluetooth-device-card">
+          <div class="device-card-left">
+            <div class="device-radar-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"></polyline></svg>
             </div>
-
-            <!-- Draggable 3D Sound Orb -->
-            <div class="sound-orb" id="soundOrb" title="Drag to move 3D sound around head">
-              <div class="sound-orb-core"></div>
-              <div class="sound-orb-wave"></div>
-              <div class="sound-orb-wave wave-2"></div>
+            <div>
+              <div class="device-status-text" id="bluetoothDeviceLabel">Bluetooth / Audio Output</div>
+              <div class="device-subtext" id="bluetoothDeviceSub">Optimized for 3D Soundstage & Low Latency</div>
             </div>
           </div>
+          <button class="btn-spotify-sm" id="connectBluetoothBtn">Device Settings</button>
+        </div>
 
-          <!-- 360 Auto-Orbit Controls -->
-          <div class="orbit-control-bar">
-            <label class="orbit-toggle-label">
-              <input type="checkbox" id="orbitToggle" checked>
-              <span>360° Auto-Orbit Around Head</span>
-            </label>
-            <div class="orbit-speed-select">
-              <span>Speed:</span>
-              <button class="orbit-speed-btn" data-speed="slow">Slow</button>
-              <button class="orbit-speed-btn active" data-speed="normal">Normal</button>
-              <button class="orbit-speed-btn" data-speed="fast">Fast</button>
+        <!-- 3D Spatial Audio Switch -->
+        <div class="fx-toggle-row">
+          <div class="fx-toggle-info">
+            <div class="fx-toggle-title">
+              <span>3D Spatial Audio</span>
+              <span class="feature-tag">360° Soundstage</span>
             </div>
+            <div class="fx-toggle-desc">Simulates a binaural 3D audio sphere. Vocals and instruments wrap around your ears.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleSpatial3D" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Dolby Atmos Cinema Surround Switch -->
+        <div class="fx-toggle-row">
+          <div class="fx-toggle-info">
+            <div class="fx-toggle-title">
+              <span>Dolby Atmos Cinema Mode</span>
+              <span class="feature-tag dolby-tag">Theater Surround</span>
+            </div>
+            <div class="fx-toggle-desc">Immersive acoustic chamber reverberation with multi-channel widening.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleDolbyAtmos" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Bass Boost Slider -->
+        <div class="fx-slider-block">
+          <div class="slider-block-header">
+            <div class="slider-title">💥 Super Bass Boost</div>
+            <div class="slider-value" id="bassBoostValue">+8 dB</div>
+          </div>
+          <p class="slider-desc">Enhances deep sub-bass frequencies (70Hz) for punchy, distortion-free thumping bass.</p>
+          <input type="range" class="fx-range" id="bassBoostSlider" min="0" max="15" step="1" value="8">
+        </div>
+
+        <!-- Vocal Clarity Mode -->
+        <div class="fx-toggle-row">
+          <div class="fx-toggle-info">
+            <div class="fx-toggle-title">
+              <span>Vocal Clarity</span>
+              <span class="feature-tag">Crystal Clear</span>
+            </div>
+            <div class="fx-toggle-desc">Sharpens mid-frequency singer vocals, eliminating muddy sound.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleVocalClarity" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Equalizer Presets -->
+        <div class="eq-presets-container">
+          <div class="slider-title">Equalizer Presets</div>
+          <div class="preset-chips">
+            <button class="preset-chip active" data-preset="dolby">Dolby Atmos Cinema</button>
+            <button class="preset-chip" data-preset="spatial">3D Spatial Stage</button>
+            <button class="preset-chip" data-preset="bass">Bass Boost Max</button>
+            <button class="preset-chip" data-preset="vocal">Vocal & Acoustic</button>
+            <button class="preset-chip" data-preset="flat">Flat / Studio</button>
           </div>
         </div>
 
-        <!-- Right: Spatial Presets & Acoustic Tuning -->
-        <div class="spatial-tuning-panel">
-          <div class="tuning-section-title">IMMERSIVE PRESETS</div>
-          <div class="spatial-presets-grid">
-            <button class="spatial-preset-card active" data-preset="spatial_360">
-              <span class="preset-icon">🌐</span>
-              <div class="preset-text">
-                <div class="preset-name">360° Spatial Orbit</div>
-                <div class="preset-desc">Binaural 3D rotation around earbuds</div>
-              </div>
-            </button>
-            
-            <button class="spatial-preset-card" data-preset="bass_3d">
-              <span class="preset-icon">💥</span>
-              <div class="preset-text">
-                <div class="preset-name">Earbuds Deep Bass 3D</div>
-                <div class="preset-desc">Sub-bass punch + wide acoustic field</div>
-              </div>
-            </button>
-
-            <button class="spatial-preset-card" data-preset="concert">
-              <span class="preset-icon">🏟️</span>
-              <div class="preset-text">
-                <div class="preset-name">Live Stadium / Concert</div>
-                <div class="preset-desc">Grand 3D reverberation & depth</div>
-              </div>
-            </button>
-
-            <button class="spatial-preset-card" data-preset="vocal">
-              <span class="preset-icon">🎙️</span>
-              <div class="preset-text">
-                <div class="preset-name">Vocal Intimacy</div>
-                <div class="preset-desc">Front crystal vocals with wide melody</div>
-              </div>
-            </button>
-
-            <button class="spatial-preset-card" data-preset="off">
-              <span class="preset-icon">🎧</span>
-              <div class="preset-text">
-                <div class="preset-name">Original Stereo</div>
-                <div class="preset-desc">Standard uncolored headphone stereo</div>
-              </div>
-            </button>
-          </div>
-
-          <div class="tuning-section-title" style="margin-top: 20px;">EARBUDS ACOUSTIC TUNING</div>
-          
-          <!-- Bass Boost Slider -->
-          <div class="acoustic-slider-group">
-            <div class="slider-label-row">
-              <span>Earbuds Bass Boost</span>
-              <span class="slider-val" id="bassVal">+6 dB</span>
-            </div>
-            <input type="range" id="spatialBassSlider" min="0" max="14" step="1" value="6">
-          </div>
-
-          <!-- Spatial Width Slider -->
-          <div class="acoustic-slider-group">
-            <div class="slider-label-row">
-              <span>Spatial Stage Width</span>
-              <span class="slider-val" id="widthVal">180%</span>
-            </div>
-            <input type="range" id="spatialWidthSlider" min="100" max="280" step="10" value="180">
-          </div>
-
-          <!-- Room Reverb Slider -->
-          <div class="acoustic-slider-group">
-            <div class="slider-label-row">
-              <span>3D Room Ambiance</span>
-              <span class="slider-val" id="reverbVal">30%</span>
-            </div>
-            <input type="range" id="spatialReverbSlider" min="0" max="100" step="5" value="30">
-          </div>
+        <!-- Anti-Distortion & Noise Eliminator (Fixes "erachal sound") -->
+        <div class="anti-noise-badge">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--spotify-green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Anti-Clipping Limiter Active: Zero static, crackle, or buzzing guaranteed.</span>
         </div>
 
       </div>
     </div>
   </div>
 
-  <!-- Fullscreen 3D Vinyl Turntable & Lyrics Modal -->
-  <div class="vinyl-modal" id="vinylModal">
-    <div class="vinyl-modal-backdrop" id="closeVinylModalBackdrop"></div>
-    <div class="vinyl-modal-container">
-      
-      <!-- Modal Top Bar -->
-      <div class="modal-top-bar">
-        <div class="modal-tabs">
-          <button class="modal-tab active" id="tabVinyl">3D Turntable</button>
-          <button class="modal-tab" id="tabLyrics">Lyrics & Info</button>
+  <!-- Audio Quality & Resolution Modal -->
+  <div class="audio-fx-modal" id="qualityModal">
+    <div class="modal-backdrop" id="closeQualityBackdrop"></div>
+    <div class="audio-fx-dialog quality-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">STREAM QUALITY</div>
+          <h2>Audio Quality & Resolution</h2>
+          <p class="dialog-subtitle">Choose format and bitrate for your playback</p>
         </div>
-        <button class="close-modal-btn" id="closeVinylModalBtn">✕</button>
+        <button class="close-dialog-btn" id="closeQualityBtn">✕</button>
       </div>
 
-      <!-- Modal Body (Vinyl View) -->
-      <div class="modal-body" id="modalVinylBody">
-        <div class="turntable-deck">
-          <div class="turntable-base">
-            
-            <!-- Vinyl Record -->
-            <div class="vinyl-record" id="modalVinylRecord">
-              <div class="vinyl-grooves"></div>
-              <div class="vinyl-center-label">
-                <img id="vinylCenterImage" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop" alt="Center Label">
-                <div class="spindle-hole"></div>
+      <div class="dialog-body">
+        <div class="quality-options-list">
+          
+          <label class="quality-card" data-quality="4k" data-format="mp4" data-bitrate="1411">
+            <input type="radio" name="qualityOption" value="4k">
+            <div class="dq-icon dq-icon-master">4K</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">4K Studio Master (1411 kbps)</span>
+                <span class="quality-badge-tag dq-tag-purple">24-BIT HI-RES</span>
+              </div>
+              <div class="quality-desc">Audiophile master. Full 20Hz-22kHz spectrum, crystal air shimmer &amp; maximum dynamic headroom.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+          <label class="quality-card active" data-quality="720p" data-format="mp4" data-bitrate="320">
+            <input type="radio" name="qualityOption" value="720p" checked>
+            <div class="dq-icon dq-icon-high">MP4</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">MP4 HD Audio (320 kbps Hi-Res)</span>
+                <span class="quality-badge-tag rec">HI-RES RECOMMENDED</span>
+              </div>
+              <div class="quality-desc">Direct high-bitrate MP4 AAC audio stream with pristine studio fidelity, punchy bass, and crystal clear vocals.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+          <label class="quality-card" data-quality="1080p" data-format="mp3" data-bitrate="320">
+            <input type="radio" name="qualityOption" value="1080p">
+            <div class="dq-icon dq-icon-ultra">1080p</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">1080p Ultra HD MP3 (320 kbps)</span>
+                <span class="quality-badge-tag dq-tag-gold">UNIVERSAL MP3</span>
+              </div>
+              <div class="quality-desc">Warm analog club punch, rich mid-bass, and crystal upfront vocals.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+          <label class="quality-card" data-quality="480p" data-format="mp4" data-bitrate="160">
+            <input type="radio" name="qualityOption" value="480p">
+            <div class="dq-icon dq-icon-mid">480p</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">480p High Quality (160 kbps)</span>
+                <span class="quality-badge-tag">BALANCED</span>
+              </div>
+              <div class="quality-desc">Smooth crystal-clear streaming with balanced data consumption.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+          <label class="quality-card" data-quality="360p" data-format="mp4" data-bitrate="96">
+            <input type="radio" name="qualityOption" value="360p">
+            <div class="dq-icon dq-icon-low">360p</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">360p Standard Data Saver (96 kbps)</span>
+                <span class="quality-badge-tag">DATA SAVER</span>
+              </div>
+              <div class="quality-desc">Fast mobile streaming for slow connections or limited cellular data.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+          <label class="quality-card" data-quality="240p" data-format="mp4" data-bitrate="64">
+            <input type="radio" name="qualityOption" value="240p">
+            <div class="dq-icon dq-icon-saver">240p</div>
+            <div class="quality-card-content">
+              <div class="quality-name-row">
+                <span class="quality-name">240p Ultra Data Saver (64 kbps)</span>
+                <span class="quality-badge-tag dq-tag-orange">MIN DATA</span>
+              </div>
+              <div class="quality-desc">Minimal bandwidth usage optimized for weak 2G/3G mobile networks.</div>
+            </div>
+            <div class="quality-radio-check">✓</div>
+          </label>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download Quality Modal -->
+  <div class="audio-fx-modal" id="downloadModal">
+    <div class="modal-backdrop" id="closeDownloadBackdrop"></div>
+    <div class="audio-fx-dialog download-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge download-badge">⬇ DOWNLOAD</div>
+          <h2 id="downloadSongTitle">Download Song</h2>
+          <p class="dialog-subtitle" id="downloadSongArtist">Select quality to save the song to your device</p>
+        </div>
+        <button class="close-dialog-btn" id="closeDownloadBtn">✕</button>
+      </div>
+
+      <div class="dialog-body">
+        <!-- Download artwork preview -->
+        <div class="download-art-row">
+          <img class="download-art-thumb" id="downloadArtThumb" src="" alt="">
+          <div class="download-info">
+            <div class="download-info-title" id="downloadInfoTitle">–</div>
+            <div class="download-info-sub" id="downloadInfoSub">–</div>
+          </div>
+        </div>
+
+        <!-- Quality Options -->
+        <div class="download-section-title">Choose Download Quality</div>
+
+        <div class="download-quality-list">
+
+          <button class="download-quality-row" data-quality="4k" title="1411 kbps – 24-Bit Studio Master Lossless">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-master">4K</div>
+              <div class="dq-info">
+                <div class="dq-name">4K Studio Master <span class="dq-tag dq-tag-purple">1411 kbps LOSSLESS</span></div>
+                <div class="dq-sub">Audiophile 24-bit hi-res master · Maximum air &amp; dynamic range</div>
               </div>
             </div>
-
-            <!-- Tonearm with Needle -->
-            <div class="tonearm-assembly" id="tonearmAssembly">
-              <div class="tonearm-base"></div>
-              <div class="tonearm-bar"></div>
-              <div class="tonearm-headshell"></div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </div>
+          </button>
 
-            <!-- Strobe light dot -->
-            <div class="strobe-indicator" id="strobeIndicator"></div>
-          </div>
+          <button class="download-quality-row" data-quality="720p" title="320 kbps – Studio HD">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-high">720p</div>
+              <div class="dq-info">
+                <div class="dq-name">720p HD Studio Quality <span class="dq-tag dq-tag-green">320 kbps</span></div>
+                <div class="dq-sub">Studio reference master quality · Full bass &amp; clarity · Recommended</div>
+              </div>
+            </div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+          </button>
+
+          <button class="download-quality-row" data-quality="1080p" title="320 kbps MP3 – Universal">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-ultra">1080p</div>
+              <div class="dq-info">
+                <div class="dq-name">1080p Ultra HD MP3 <span class="dq-tag dq-tag-gold">320 kbps MP3</span></div>
+                <div class="dq-sub">Universal MP3 format · Warm club punch · Works on all devices</div>
+              </div>
+            </div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+          </button>
+
+          <button class="download-quality-row" data-quality="480p" title="160 kbps – High quality">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-mid">480p</div>
+              <div class="dq-info">
+                <div class="dq-name">480p High Quality <span class="dq-tag">160 kbps</span></div>
+                <div class="dq-sub">Clear audio · Balanced file size · Recommended for offline</div>
+              </div>
+            </div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+          </button>
+
+          <button class="download-quality-row" data-quality="360p" title="96 kbps – Smallest file">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-low">360p</div>
+              <div class="dq-info">
+                <div class="dq-name">360p Standard Quality <span class="dq-tag">96 kbps</span></div>
+                <div class="dq-sub">Fast download · Smallest file size · Good for playlists</div>
+              </div>
+            </div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+          </button>
+
+          <button class="download-quality-row" data-quality="240p" title="64 kbps – Ultra Data Saver">
+            <div class="dq-left">
+              <div class="dq-icon dq-icon-saver">240p</div>
+              <div class="dq-info">
+                <div class="dq-name">240p Ultra Data Saver <span class="dq-tag dq-tag-orange">64 kbps</span></div>
+                <div class="dq-sub">Minimal data download · Fast on slow 2G/3G connections</div>
+              </div>
+            </div>
+            <div class="dq-download-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </div>
+          </button>
+
         </div>
 
-        <!-- Live Audio Canvas Visualizer -->
-        <canvas id="visualizerCanvas" class="visualizer-canvas" width="600" height="120"></canvas>
-
-        <div class="modal-track-info">
-          <h2 class="modal-song-title" id="modalSongTitle">Leo - Naa Ready</h2>
-          <p class="modal-song-artist" id="modalSongArtist">Anirudh Ravichander, Vijay</p>
-          <p class="modal-song-album" id="modalSongAlbum">Movie: Leo (2023)</p>
+        <!-- Download Progress bar (shown when downloading) -->
+        <div class="download-progress-wrap" id="downloadProgressWrap" style="display:none;">
+          <div class="download-progress-label" id="downloadProgressLabel">Downloading...</div>
+          <div class="download-progress-bar-track">
+            <div class="download-progress-bar-fill" id="downloadProgressFill"></div>
+          </div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <!-- Modal Body (Lyrics View) -->
-      <div class="modal-body" id="modalLyricsBody" style="display: none;">
-        <div class="lyrics-container">
-          <div class="lyrics-header">
-            <h3 id="lyricsSongTitle">Lyrics</h3>
-            <span class="badge" id="lyricsStatusBadge">HD Audio Sync</span>
+  <!-- Bedtime Sleep Timer Modal -->
+  <div class="sleep-modal" id="sleepTimerModal">
+    <div class="modal-backdrop" id="closeSleepBackdrop"></div>
+    <div class="sleep-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">BEDTIME SLEEP TIMER</div>
+          <h2>Auto-Off Sleep Timer</h2>
+          <p class="dialog-subtitle">Music pauses gently so you can fall asleep peacefully</p>
+        </div>
+        <button class="close-dialog-btn" id="closeSleepBtn">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="sleep-active-status" id="sleepActiveStatus" style="display:none;">
+          <div class="sleep-status-pill">
+            <span class="sleep-pulse-dot"></span>
+            <span>Timer Active: <strong id="sleepTimeRemaining">30:00</strong> remaining</span>
           </div>
-          <div class="lyrics-text" id="lyricsText">
-            Loading lyrics...
+          <button class="btn-spotify-sm btn-cancel-timer" id="cancelSleepTimerBtn">Turn Off Timer</button>
+        </div>
+
+        <div class="sleep-options-grid">
+          <button class="sleep-option-card" data-minutes="15">
+            <span class="sleep-opt-val">15</span>
+            <span class="sleep-opt-lbl">Minutes</span>
+          </button>
+          <button class="sleep-option-card" data-minutes="30">
+            <span class="sleep-opt-val">30</span>
+            <span class="sleep-opt-lbl">Minutes</span>
+          </button>
+          <button class="sleep-option-card" data-minutes="45">
+            <span class="sleep-opt-val">45</span>
+            <span class="sleep-opt-lbl">Minutes</span>
+          </button>
+          <button class="sleep-option-card" data-minutes="60">
+            <span class="sleep-opt-val">60</span>
+            <span class="sleep-opt-lbl">Minutes</span>
+          </button>
+          <button class="sleep-option-card sleep-opt-full" data-minutes="end_of_song">
+            <span class="sleep-opt-icon">🎵</span>
+            <div class="sleep-opt-text">
+              <span class="sleep-opt-val">End of Current Song</span>
+              <span class="sleep-opt-lbl">Pause playback cleanly when track ends</span>
+            </div>
+          </button>
+        </div>
+
+        <div class="sleep-fade-setting">
+          <div class="fade-setting-info">
+            <span class="fade-title">Smooth 30s Exponential Fade-Out</span>
+            <span class="fade-desc">Gradually lowers volume before stopping to avoid sudden silence</span>
           </div>
+          <label class="switch">
+            <input type="checkbox" id="sleepFadeOutToggle" checked>
+            <span class="slider round"></span>
+          </label>
         </div>
       </div>
+    </div>
+  </div>
 
+  <!-- Speed & Slowed + Reverb Modal -->
+  <div class="speed-modal" id="speedModal">
+    <div class="modal-backdrop" id="closeSpeedBackdrop"></div>
+    <div class="speed-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">LO-FI & PLAYBACK SPEED</div>
+          <h2>Speed & Slowed + Reverb</h2>
+          <p class="dialog-subtitle">Experience songs in dreamy Lo-Fi or upbeat Nightcore</p>
+        </div>
+        <button class="close-dialog-btn" id="closeSpeedBtn">✕</button>
+      </div>
+      <div class="dialog-body">
+        <!-- 1-Click Slowed + Reverb Hero Card -->
+        <div class="slowed-card" id="slowedReverbCard">
+          <div class="slowed-left">
+            <div class="slowed-icon">✨</div>
+            <div>
+              <div class="slowed-title">Slowed + Reverb Lo-Fi Mode</div>
+              <div class="slowed-sub">0.85x Speed · Dolby Atmos Reverb · +10dB Analog Bass</div>
+            </div>
+          </div>
+          <button class="btn-spotify-sm" id="toggleSlowedModeBtn">Enable Lo-Fi</button>
+        </div>
+
+        <div class="speed-section-title">PLAYBACK SPEED</div>
+        <div class="speed-chips-grid">
+          <button class="speed-chip" data-speed="0.75">
+            <span class="chip-val">0.75x</span>
+            <span class="chip-sub">Chill Slow</span>
+          </button>
+          <button class="speed-chip" data-speed="0.85">
+            <span class="chip-val">0.85x</span>
+            <span class="chip-sub">Lo-Fi Vibe</span>
+          </button>
+          <button class="speed-chip active" data-speed="1.0">
+            <span class="chip-val">1.0x</span>
+            <span class="chip-sub">Normal</span>
+          </button>
+          <button class="speed-chip" data-speed="1.15">
+            <span class="chip-val">1.15x</span>
+            <span class="chip-sub">Brisk</span>
+          </button>
+          <button class="speed-chip" data-speed="1.25">
+            <span class="chip-val">1.25x</span>
+            <span class="chip-sub">Upbeat</span>
+          </button>
+          <button class="speed-chip" data-speed="1.5">
+            <span class="chip-val">1.5x</span>
+            <span class="chip-sub">Nightcore</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Playlist Modal (Create & Add) -->
+  <div class="playlist-modal" id="playlistModal">
+    <div class="modal-backdrop" id="closePlaylistBackdrop"></div>
+    <div class="playlist-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">CUSTOM PLAYLIST</div>
+          <h2 id="playlistModalTitle">Add to Playlist</h2>
+          <p class="dialog-subtitle" id="playlistModalSub">Organize your favorite Tamil and Indian songs</p>
+        </div>
+        <button class="close-dialog-btn" id="closePlaylistBtn">✕</button>
+      </div>
+      <div class="dialog-body">
+        <!-- Create New Form (toggleable) -->
+        <div class="playlist-create-form" id="playlistCreateForm">
+          <input type="text" id="newPlaylistNameInput" class="spotify-input" placeholder="Playlist Name (e.g., Midnight Vibes, Gym Hits)">
+          <input type="text" id="newPlaylistDescInput" class="spotify-input-sm" placeholder="Description (optional)">
+          <button class="btn btn-primary" id="confirmCreatePlaylistBtn">Create Playlist</button>
+        </div>
+
+        <div class="playlist-pick-list" id="playlistPickList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1-Click WhatsApp & Social Share Modal -->
+  <div class="share-modal" id="shareModal">
+    <div class="modal-backdrop" id="closeShareBackdrop"></div>
+    <div class="share-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">SHARE MUSIC</div>
+          <h2>Share Song</h2>
+          <p class="dialog-subtitle">Send this song to friends with 3D Spatial Audio</p>
+        </div>
+        <button class="close-dialog-btn" id="closeShareBtn">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="share-song-preview">
+          <img id="shareThumb" src="" alt="Song art">
+          <div class="share-preview-info">
+            <div class="share-song-title" id="shareTitle">Song Title</div>
+            <div class="share-song-artist" id="shareArtist">Artist</div>
+            <span class="share-quality-tag" id="shareBadge">320 KBPS HD</span>
+          </div>
+        </div>
+
+        <div class="share-buttons-list">
+          <a class="share-btn whatsapp-share-btn" id="whatsappShareBtn" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 18.06c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.132 8.132 0 0 1-1.25-4.29c0-4.52 3.68-8.2 8.2-8.2 2.19 0 4.25.85 5.8 2.4 1.55 1.55 2.4 3.61 2.4 5.8 0 4.52-3.68 8.15-8.16 8.15zm4.49-6.13c-.25-.12-1.46-.72-1.69-.81-.22-.08-.39-.12-.55.12-.17.25-.64.81-.79.98-.14.17-.29.19-.54.06-.25-.12-1.05-.39-2-1.24-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43s-.55-1.33-.76-1.82c-.2-.48-.41-.41-.56-.42h-.48c-.17 0-.43.06-.66.31-.22.25-.86.84-.86 2.05 0 1.21.88 2.38 1.01 2.54.12.17 1.74 2.66 4.22 3.73.59.25 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.46-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.29z"/></svg>
+            <span>Share directly on WhatsApp</span>
+          </a>
+
+          <div class="share-copy-row">
+            <input type="text" id="shareUrlInput" class="share-url-input" readonly>
+            <button class="btn-spotify-sm" id="copyShareUrlBtn">Copy Link</button>
+          </div>
+
+          <button class="share-native-btn" id="nativeShareBtn" style="display:none;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            <span>More Sharing Options (System Dialog)</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -605,6 +1111,33 @@
 
   <!-- Notification Toast -->
   <div class="toast" id="toast"></div>
+
+  <!-- User Profile Dropdown -->
+  <div class="user-menu-overlay" id="userMenuOverlay">
+    <div class="user-menu-card" id="userMenuCard">
+      <div class="user-menu-header">
+        <div class="user-menu-avatar" id="menuAvatar">M</div>
+        <div>
+          <div class="user-menu-name" id="menuUsername">User</div>
+          <div class="user-menu-email" id="menuEmail">user@email.com</div>
+        </div>
+      </div>
+      <div class="user-menu-divider"></div>
+      <button class="user-menu-item" id="menuMyLibrary">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path></svg>
+        Your Library
+      </button>
+      <button class="user-menu-item" id="menuMyPlaylists">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+        Custom Playlists
+      </button>
+      <div class="user-menu-divider"></div>
+      <button class="user-menu-item user-menu-logout" id="menuLogoutBtn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        Sign Out
+      </button>
+    </div>
+  </div>
 
   <!-- App Script -->
   <script src="app.js"></script>

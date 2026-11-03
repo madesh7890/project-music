@@ -1,0 +1,18 @@
+[
+  {
+    "id": "u_1793202684614",
+    "email": "testuser@example.com",
+    "username": "testuser",
+    "passwordHash": "a2cfa52d911da8443ffb801e67f699880b09076d7162065005e8742f56b61f30",
+    "createdAt": "2026-10-28T15:51:24.615Z",
+    "avatar": "T"
+  },
+  {
+    "id": "u_1793203164098",
+    "email": "madesh11092006@gmail.com",
+    "username": "madesh R",
+    "passwordHash": "d2ddaf2f3044755d7c4a403ee232f2c0eb0be2983c3a9f4184c1a777c73f9b8a",
+    "createdAt": "2026-10-28T15:59:24.099Z",
+    "avatar": "M"
+  }
+]

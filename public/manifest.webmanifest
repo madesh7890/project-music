@@ -1,0 +1,24 @@
+{
+  "name": "MUSIC - Premium Audio",
+  "short_name": "MUSIC",
+  "description": "Stream old to new Tamil, Malayalam, Hindi, Telugu, and English songs with 4K Lossless, 3D Spatial Audio & Dolby Atmos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
