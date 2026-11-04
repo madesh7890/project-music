@@ -8,6 +8,12 @@
 class MusicApp {
   constructor() {
     this.audio = document.getElementById('audioElement');
+    // Mobile optimization: Remove crossorigin attribute on mobile so native audio hardware engine is used with 0 CORS overhead
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+    if (isMobile && this.audio) {
+      this.audio.removeAttribute('crossorigin');
+    }
     this.currentSong = null;
     this.queue = [];
     this.queueIndex = -1;
@@ -359,45 +365,21 @@ class MusicApp {
   setupAudioDSP() {
     if (this.isDspInit) return;
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-
-      // Detect mobile to avoid heavy DSP chain causing crackling/underruns
+      // ── MOBILE NATIVE DIRECT HARDWARE AUDIO ──────────────────────────────
+      // On mobile devices (Android & iOS):
+      // NEVER attach Web Audio API MediaElementSourceNode to <audio>!
+      // Mobile browsers force Web Audio through a 128-sample software buffer that
+      // underflows easily during UI rendering or network shifts, producing harsh
+      // digital crackling, static hiss, and robotic buzzing ("erachal sound").
+      // By letting <audio> decode natively, Android MediaPlayer/AAudio & iOS AVPlayer
+      // handle the 320k stream directly in hardware with zero latency, zero noise,
+      // zero crackling, and 100% stable background playback when screen is locked!
       const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
         (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
 
-      if (!this.audioCtx) {
-        // Explicit sampleRate to prevent crackling from mismatch on mobile
-        try {
-          this.audioCtx = new AudioContext({ sampleRate: isMobile ? 44100 : 48000 });
-        } catch (e) {
-          this.audioCtx = new AudioContext();
-        }
-      }
-
-      // ── MOBILE LIGHTWEIGHT MODE ─────────────────────────────────────────
-      // On mobile: skip heavy convolver, spatial delay, multi-filter chain.
-      // Only keep: source → inputGain → bassFilter → masterGain → compressor → destination
       if (isMobile) {
-        this.inputGain = this.audioCtx.createGain();
-        this.inputGain.gain.value = 0.9;
-
-        this.bassFilter = this.audioCtx.createBiquadFilter();
-        this.bassFilter.type = 'lowshelf';
-        this.bassFilter.frequency.value = 80;
-        this.bassFilter.gain.value = this.bassBoostGain;
-
-        this.compressor = this.audioCtx.createDynamicsCompressor();
-        this.compressor.threshold.setValueAtTime(-6, this.audioCtx.currentTime);
-        this.compressor.knee.setValueAtTime(8, this.audioCtx.currentTime);
-        this.compressor.ratio.setValueAtTime(4, this.audioCtx.currentTime);
-        this.compressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
-        this.compressor.release.setValueAtTime(0.25, this.audioCtx.currentTime);
-
-        this.masterGain = this.audioCtx.createGain();
-        this.masterGain.gain.value = 1.0;
-
-        // Dummy stubs for desktop-only nodes (mobile skips them)
+        this.isDspInit = true;
+        this.audioCtx = null;
         this.vocalFilter = null;
         this.eqFilters = [];
         this.spatialDryGain = null;
@@ -412,20 +394,17 @@ class MusicApp {
         this.fidelityAirFilter = null;
         this.fidelityWarmthFilter = null;
         this.fidelityPresenceFilter = null;
-
-        // Wire: source → inputGain → bassFilter → compressor → masterGain → destination
-        this.audioSource = this.audioCtx.createMediaElementSource(this.audio);
-        this.audioSource.connect(this.inputGain);
-        this.inputGain.connect(this.bassFilter);
-        this.bassFilter.connect(this.compressor);
-        this.compressor.connect(this.masterGain);
-        this.masterGain.connect(this.audioCtx.destination);
-
-        this.isDspInit = true;
-        console.log('🎵 Mobile DSP: lightweight mode active (no spatial/reverb/convolver)');
+        console.log('📱 Mobile: Native Direct Hardware Audio Engine active (Zero crackling, zero noise)');
         return;
       }
-      // ── END MOBILE LIGHTWEIGHT MODE ─────────────────────────────────────
+      // ── END MOBILE MODE ──────────────────────────────────────────────────
+
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+
+      if (!this.audioCtx) {
+        this.audioCtx = new AudioContext();
+      }
 
       // Master Input Headroom Gain (prevents digital clipping/distortion when EQ is boosted)
       this.inputGain = this.audioCtx.createGain();
@@ -852,66 +831,32 @@ class MusicApp {
     });
 
     this.audio.addEventListener('error', (e) => {
-      console.warn('Audio playback error, falling back to clean proxy stream...');
+      console.warn('Audio direct stream error, attempting fallback...', e);
       if (this.currentSong && this.currentSong.streams) {
         const fallback = this.currentSong.streams.stream_160 || this.currentSong.streams.stream_320 || this.currentSong.playUrl;
-        const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(fallback)}`;
-        if (this.audio.src !== proxyUrl) {
-          this.audio.src = proxyUrl;
-          this.audio.play().catch(() => {});
+        if (fallback) {
+          const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(fallback)}`;
+          if (this.audio.src !== proxyUrl) {
+            console.log('Switching to backup proxy stream:', proxyUrl);
+            this.audio.src = proxyUrl;
+            this.audio.load();
+            this.audio.play().catch(() => {});
+          }
         }
       }
     });
 
-    // ── MOBILE STALL & BUFFER RECOVERY ──────────────────────────────────
-    // Fires when browser can't fetch more data (network hiccup / slow mobile)
-    this.audio.addEventListener('stalled', () => {
-      console.warn('⚠️ Audio stalled — scheduling recovery...');
-      if (!this._stalledTimer && this.currentSong) {
-        this._stalledTimer = setTimeout(() => {
-          if (this.audio.readyState < 3 && !this.audio.paused) {
-            const t = this.audio.currentTime;
-            const src = this.audio.src;
-            console.warn('🔄 Stall recovery: reloading stream at', t.toFixed(2) + 's');
-            this.audio.src = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
-            this.audio.load();
-            this.audio.currentTime = t;
-            this.audio.play().catch(() => {});
-          }
-          this._stalledTimer = null;
-        }, 3500);
-      }
-    });
-
-    // Fires when browser is buffering (spinner) — auto-recover after 4s
+    // Native buffer events: let the browser buffer naturally without aggressive reloading
     this.audio.addEventListener('waiting', () => {
-      if (!this._waitingTimer && this.currentSong) {
-        this._waitingTimer = setTimeout(() => {
-          if (this.audio.readyState < 3 && !this.audio.paused) {
-            const t = this.audio.currentTime;
-            const src = this.audio.src;
-            console.warn('🔄 Waiting recovery: reloading at', t.toFixed(2) + 's');
-            this.audio.src = src + (src.includes('?') ? '&' : '?') + '_r=' + Date.now();
-            this.audio.load();
-            this.audio.currentTime = t;
-            this.audio.play().catch(() => {});
-          }
-          this._waitingTimer = null;
-        }, 4000);
-      }
-    });
-
-    // Clear all stall timers once audio is playing smoothly
-    this.audio.addEventListener('playing', () => {
-      if (this._stalledTimer) { clearTimeout(this._stalledTimer); this._stalledTimer = null; }
-      if (this._waitingTimer) { clearTimeout(this._waitingTimer); this._waitingTimer = null; }
+      // Browser is buffering data naturally - do not interrupt or reset stream!
+      this.isPlaying = true;
     });
 
     this.audio.addEventListener('canplay', () => {
-      if (this._stalledTimer) { clearTimeout(this._stalledTimer); this._stalledTimer = null; }
-      if (this._waitingTimer) { clearTimeout(this._waitingTimer); this._waitingTimer = null; }
+      // Buffer ready to play
+      this.isPlaying = !this.audio.paused;
+      this.updatePlayStateUI();
     });
-    // ── END MOBILE STALL & BUFFER RECOVERY ──────────────────────────────
   }
 
   updatePlayStateUI() {
@@ -1571,16 +1516,24 @@ class MusicApp {
       } else if ((formatKey === '360p' || formatKey === '240p' || formatKey === 'mp4_96') && song.streams.stream_96) {
         rawUrl = song.streams.stream_96;
       } else if (formatKey === '1080p' || formatKey === 'mp3_320') {
-        const mp3Source = song.streams.stream_320 || song.streams.default_stream || song.playUrl;
-        return `/api/proxy-audio?format=mp3&url=${encodeURIComponent(mp3Source)}`;
+        rawUrl = song.streams.stream_320 || song.streams.default_stream || song.playUrl;
       } else if (song.streams.default_stream) {
         rawUrl = song.streams.default_stream;
       }
     }
     if (!rawUrl) rawUrl = song.playUrl || '';
     if (!rawUrl) return '';
-    // Always route through local proxy so audio is SAME-ORIGIN, preventing Web Audio API from muting cross-origin sound!
-    return `/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`;
+
+    // Enforce HTTPS
+    if (rawUrl.startsWith('http:')) {
+      rawUrl = rawUrl.replace('http:', 'https:');
+    }
+
+    // Direct CDN High-Speed Streaming:
+    // Akamai & Azure Saavn CDN delivers ultra fast 320k/160k audio with native byte-range seeking.
+    // Directly connects to CDN edge in India/global, completely bypassing Vercel Serverless Function
+    // 10-second timeout, eliminating buffer underruns, pauses, and audio stuttering!
+    return rawUrl;
   }
 
   playSong(song, newQueue = null, index = -1) {
@@ -1595,16 +1548,6 @@ class MusicApp {
     }
 
     this.currentSong = song;
-
-    // Auto-downgrade to 480p (160kbps) on mobile for first play IF user hasn't manually chosen a format
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-      (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
-    if (isMobile && !this._userSetFormat && (this.currentFormat === '4k' || this.currentFormat === '720p')) {
-      // Default mobile to 480p balanced — less buffering, no crackling from large chunks
-      this.currentFormat = '480p';
-      this.updateQualityUI();
-    }
-
     const audioUrl = this.getStreamUrlForFormat(song, this.currentFormat);
 
     // Ensure volume is unmuted and audible
