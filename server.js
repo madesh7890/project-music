@@ -317,6 +317,74 @@ function normalizeSongTitle(str) {
     .trim();
 }
 
+// Helper: fetch all songs from a specific Saavn album with media stream decryption
+async function fetchSongsFromAlbum(albId, albInfo = null) {
+  if (!albId) return [];
+  try {
+    const details = await requestSaavn(`__call=content.getAlbumDetails&_format=json&cc=in&albumid=${albId}`);
+    if (details && details.songs && Array.isArray(details.songs)) {
+      const results = [];
+      details.songs.forEach(rawSong => {
+        if (!rawSong.image && albInfo?.image) {
+          rawSong.image = albInfo.image;
+        }
+        const fmt = formatSongItem(rawSong);
+        if (fmt && fmt.playUrl) {
+          results.push(fmt);
+        }
+      });
+      return results;
+    }
+  } catch (e) {
+    console.warn('Error fetching album details:', e.message);
+  }
+  return [];
+}
+
+// Stopword cleaner (removes generic music descriptors)
+function cleanSearchStopwords(q) {
+  if (!q) return '';
+  return q
+    .replace(/\b(songs?|movie|movies|album|albums|padam|track|tracks|audio|mp3|video|lyrics|hd|bgm|ost|paadal|paattu|pattu|full|ringtone|remix)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Language tag stripper (removes language keywords that user typed but aren't in album titles)
+function stripSearchLanguage(q) {
+  if (!q) return '';
+  return q
+    .replace(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Common Indian music query corrections / phonetic mappings
+const SEARCH_CORRECTIONS = [
+  // User query: "4 studios" -> "4 students" (Tamil 2004 youth movie by Jassie Gift with songs like Lajjavathiye)
+  { pattern: /\b(?:4|four)\s*(?:studios?|studio)\b/gi, replacement: '4 students' },
+  { pattern: /\bvetaiyan\b/gi, replacement: 'vettaiyan' },
+  { pattern: /\bthuppaki\b/gi, replacement: 'thuppakki' },
+  { pattern: /\bkanavea\b/gi, replacement: 'kanave' },
+  { pattern: /\bkadhaley\b/gi, replacement: 'kadhale' },
+  { pattern: /\bkadhalae\b/gi, replacement: 'kadhale' },
+  { pattern: /\bnenjukul\b/gi, replacement: 'nenjukkul' },
+  { pattern: /\bmarakkuma\b/gi, replacement: 'marakkuma nenjam' },
+  { pattern: /\bspb\b/gi, replacement: 's. p. balasubrahmanyam' },
+  { pattern: /\bu1\b/gi, replacement: 'yuvan shankar raja' },
+  { pattern: /\barr\b/gi, replacement: 'a. r. rahman' },
+  { pattern: /\bharris\b/gi, replacement: 'harris jayaraj' }
+];
+
+function applySearchCorrections(str) {
+  if (!str) return '';
+  let res = str;
+  for (const { pattern, replacement } of SEARCH_CORRECTIONS) {
+    res = res.replace(pattern, replacement);
+  }
+  return res.replace(/\s+/g, ' ').trim();
+}
+
 // 1. Universal Search API (Songs + Full Movie Albums + Smart Fallback Engine)
 app.get('/api/search', async (req, res) => {
   try {
@@ -332,46 +400,49 @@ app.get('/api/search', async (req, res) => {
       return res.json({ success: true, query: q, cached: true, results: cachedRes, total: cachedRes.length });
     }
 
-    // Clean query to isolate movie or track title without common search stopwords
-    const cleanQ = q.replace(/\b(songs?|movie|movies|album|albums|padam|track|tracks|audio|mp3)\b/gi, '').replace(/\s+/g, ' ').trim();
-    const queryForAlbum = cleanQ.length >= 2 ? cleanQ : q;
+    // Generate intelligent query candidate variations
+    const rawQ = q;
+    const correctedRaw = applySearchCorrections(rawQ);
+    const noStopwords = cleanSearchStopwords(rawQ);
+    const correctedNoStopwords = applySearchCorrections(noStopwords);
+    const coreKeywords = stripSearchLanguage(noStopwords);
+    const correctedCore = applySearchCorrections(coreKeywords);
+
+    // Prioritized list of query variations
+    const candidateQueries = Array.from(new Set([
+      correctedCore,
+      correctedNoStopwords,
+      coreKeywords,
+      noStopwords,
+      correctedRaw,
+      rawQ
+    ])).filter(s => s && s.length >= 1);
+
+    const primarySongQuery = correctedCore || noStopwords || rawQ;
+    const primaryAlbumQuery = correctedCore || coreKeywords || noStopwords || rawQ;
 
     // Concurrently search both:
     // 1) Songs direct search
     // 2) Albums / Movie Soundtrack search
     const [songData, albumData] = await Promise.all([
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(q)}`),
-      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=6&q=${encodeURIComponent(queryForAlbum)}`)
+      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(primarySongQuery)}`),
+      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=6&q=${encodeURIComponent(primaryAlbumQuery)}`)
     ]);
 
     const albumList = albumData.results || [];
-    const songsFromAlbums = [];
+    let songsFromAlbums = [];
 
     // Filter top matching albums (matching movie name)
     const matchingAlbums = albumList.slice(0, 3);
     if (matchingAlbums.length > 0) {
       const albumDetailPromises = matchingAlbums.map(alb => {
         const albId = alb.id || alb.albumid;
-        if (!albId) return Promise.resolve(null);
-        return requestSaavn(`__call=content.getAlbumDetails&_format=json&cc=in&albumid=${albId}`);
+        return fetchSongsFromAlbum(albId, alb);
       });
-
-      const albumDetailsList = await Promise.all(albumDetailPromises);
-      for (let i = 0; i < albumDetailsList.length; i++) {
-        const details = albumDetailsList[i];
-        const albInfo = matchingAlbums[i];
-        if (details && details.songs && Array.isArray(details.songs)) {
-          details.songs.forEach(rawSong => {
-            if (!rawSong.image && albInfo?.image) {
-              rawSong.image = albInfo.image;
-            }
-            const fmt = formatSongItem(rawSong);
-            if (fmt && fmt.playUrl) {
-              songsFromAlbums.push(fmt);
-            }
-          });
-        }
-      }
+      const albumSongsArrays = await Promise.all(albumDetailPromises);
+      albumSongsArrays.forEach(songs => {
+        songsFromAlbums.push(...songs);
+      });
     }
 
     // Raw songs from direct song search
@@ -384,45 +455,75 @@ app.get('/api/search', async (req, res) => {
     const seenTitles = new Set();
     const seenIds = new Set();
 
-    // Prioritize movie album tracklist first
-    for (const song of songsFromAlbums) {
+    const addSong = (song) => {
+      if (!song || !song.id || !song.playUrl) return;
       const norm = normalizeSongTitle(song.title);
       if (!seenTitles.has(norm) && !seenIds.has(song.id)) {
         seenTitles.add(norm);
         seenIds.add(song.id);
         finalResults.push(song);
       }
-    }
+    };
 
-    // Then append direct song matches
-    for (const song of rawSongs) {
-      const norm = normalizeSongTitle(song.title);
-      if (!seenTitles.has(norm) && !seenIds.has(song.id)) {
-        seenTitles.add(norm);
-        seenIds.add(song.id);
-        finalResults.push(song);
-      }
-    }
+    // Prioritize movie album tracklist first, then direct song matches
+    songsFromAlbums.forEach(addSong);
+    rawSongs.forEach(addSong);
 
-    // Fallback 1: If 0 results, try with cleanQ if cleanQ was different
-    if (finalResults.length === 0 && cleanQ !== q && cleanQ.length >= 2) {
-      const fallbackData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(cleanQ)}`);
-      const fallbackSongs = (fallbackData.results || [])
-        .map(formatSongItem)
-        .filter(s => s && s.playUrl);
-      for (const s of fallbackSongs) {
-        const norm = normalizeSongTitle(s.title);
-        if (!seenTitles.has(norm) && !seenIds.has(s.id)) {
-          seenTitles.add(norm);
-          seenIds.add(s.id);
-          finalResults.push(s);
+    // ── DEEP FALLBACK CASCADE ────────────────────────────────────────────────
+    // If still 0 or very few results, cascade through other candidate variations
+    if (finalResults.length === 0) {
+      for (const candidate of candidateQueries) {
+        if (candidate === primarySongQuery && candidate === primaryAlbumQuery) continue;
+        
+        // Try album search for candidate
+        const fbAlbumData = await requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=4&q=${encodeURIComponent(candidate)}`);
+        if (fbAlbumData && fbAlbumData.results && fbAlbumData.results.length > 0) {
+          for (const alb of fbAlbumData.results.slice(0, 2)) {
+            const albId = alb.id || alb.albumid;
+            const songs = await fetchSongsFromAlbum(albId, alb);
+            songs.forEach(addSong);
+          }
         }
+
+        // Try direct song search for candidate
+        if (finalResults.length === 0) {
+          const fbSongData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(candidate)}`);
+          if (fbSongData && fbSongData.results) {
+            fbSongData.results.map(formatSongItem).forEach(addSong);
+          }
+        }
+
+        if (finalResults.length > 0) break;
       }
     }
 
-    // Fallback 2: Check local in-memory curated shelves cache for any match
+    // ── AUTOCOMPLETE FUZZY FALLBACK ──────────────────────────────────────────
+    // If still 0 results, use JioSaavn Autocomplete suggestions API to find matching album/song
+    if (finalResults.length === 0) {
+      const autoQuery = correctedCore || coreKeywords || correctedRaw || rawQ;
+      try {
+        const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(autoQuery)}`);
+        if (autoData?.albums?.data && autoData.albums.data.length > 0) {
+          for (const alb of autoData.albums.data.slice(0, 2)) {
+            const songs = await fetchSongsFromAlbum(alb.id, alb);
+            songs.forEach(addSong);
+          }
+        }
+        if (finalResults.length === 0 && autoData?.songs?.data && autoData.songs.data.length > 0) {
+          for (const rawS of autoData.songs.data.slice(0, 8)) {
+            const fmt = formatSongItem(rawS);
+            if (fmt && fmt.playUrl) addSong(fmt);
+          }
+        }
+      } catch (e) {
+        console.warn('Autocomplete fallback warning:', e.message);
+      }
+    }
+
+    // ── CURATED SHELVES LOCAL CACHE FALLBACK ─────────────────────────────────
+    // If still 0 results, match tokens against locally cached curated shelves
     if (finalResults.length === 0 && cachedCuratedShelves) {
-      const searchTerms = q.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+      const searchTerms = rawQ.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
       for (const shelf of cachedCuratedShelves) {
         for (const s of (shelf.songs || [])) {
           const match = searchTerms.some(term => 
@@ -430,10 +531,7 @@ app.get('/api/search', async (req, res) => {
             (s.album && s.album.toLowerCase().includes(term)) ||
             (s.artist && s.artist.toLowerCase().includes(term))
           );
-          if (match && !seenIds.has(s.id)) {
-            seenIds.add(s.id);
-            finalResults.push(s);
-          }
+          if (match) addSong(s);
         }
       }
     }
