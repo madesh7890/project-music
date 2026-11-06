@@ -27,10 +27,12 @@
 
 html, body {
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: 'Circular', 'Inter', 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Animated Background ── */
@@ -82,11 +84,12 @@ html, body {
   position: relative;
   z-index: 1;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px 40px;
+  padding: max(24px, env(safe-area-inset-top, 24px)) 16px max(40px, env(safe-area-inset-bottom, 40px));
 }
 
 /* ── Brand Logo ── */

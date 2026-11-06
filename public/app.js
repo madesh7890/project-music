@@ -168,6 +168,12 @@ class MusicApp {
     this.mNavSearch = document.getElementById('mNavSearch');
     this.mNavFavorites = document.getElementById('mNavFavorites');
     this.mNavAudioFX = document.getElementById('mNavAudioFX');
+    this.mNavSettings = document.getElementById('mNavSettings');
+
+    // Mobile Settings Modal & Dialog
+    this.mobileSettingsModal = document.getElementById('mobileSettingsModal');
+    this.closeMobileSettingsBtn = document.getElementById('closeMobileSettingsBtn');
+    this.closeMobileSettingsBackdrop = document.getElementById('closeMobileSettingsBackdrop');
 
     // Fullscreen / Mobile Now Playing Sheet
     this.nowPlayingSheet = document.getElementById('nowPlayingSheet');
@@ -1067,6 +1073,90 @@ class MusicApp {
     this.mNavAudioFX.addEventListener('click', () => {
       this.openAudioFXModal();
     });
+    if (this.mNavSettings) {
+      this.mNavSettings.addEventListener('click', () => {
+        this.openMobileSettingsModal();
+      });
+    }
+
+    // Mobile Settings Dialog Events
+    if (this.closeMobileSettingsBtn) {
+      this.closeMobileSettingsBtn.addEventListener('click', () => this.closeMobileSettingsModal());
+    }
+    if (this.closeMobileSettingsBackdrop) {
+      this.closeMobileSettingsBackdrop.addEventListener('click', () => this.closeMobileSettingsModal());
+    }
+
+    const mOpenQuality = document.getElementById('mOpenQualityBtn');
+    if (mOpenQuality) {
+      mOpenQuality.addEventListener('click', () => {
+        this.closeMobileSettingsModal();
+        this.qualityModal.classList.add('active');
+      });
+    }
+
+    const mOpenAudioFX = document.getElementById('mOpenAudioFXBtn');
+    if (mOpenAudioFX) {
+      mOpenAudioFX.addEventListener('click', () => {
+        this.closeMobileSettingsModal();
+        this.openAudioFXModal();
+      });
+    }
+
+    const mOpenSleep = document.getElementById('mOpenSleepTimerBtn');
+    if (mOpenSleep) {
+      mOpenSleep.addEventListener('click', () => {
+        this.closeMobileSettingsModal();
+        if (this.sleepTimerModal) this.sleepTimerModal.classList.add('open');
+      });
+    }
+
+    const mOpenSpeed = document.getElementById('mOpenSpeedBtn');
+    if (mOpenSpeed) {
+      mOpenSpeed.addEventListener('click', () => {
+        this.closeMobileSettingsModal();
+        if (this.speedModal) this.speedModal.classList.add('open');
+      });
+    }
+
+    const mToggleKaraoke = document.getElementById('mToggleKaraokeScriptBtn');
+    if (mToggleKaraoke) {
+      mToggleKaraoke.addEventListener('click', () => {
+        this.toggleKaraokeScript();
+        this.updateMobileSettingsUI();
+      });
+    }
+
+    const mInstallBtn = document.getElementById('mInstallAppBtn');
+    if (mInstallBtn) {
+      mInstallBtn.addEventListener('click', () => {
+        this.triggerPwaInstall();
+      });
+    }
+
+    const mReloadCache = document.getElementById('mReloadCacheBtn');
+    if (mReloadCache) {
+      mReloadCache.addEventListener('click', async () => {
+        this.showToast('🔄 Clearing cache and reloading...');
+        try {
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+          }
+        } catch (e) {}
+        setTimeout(() => window.location.reload(true), 400);
+      });
+    }
+
+    const mLogoutBtn = document.getElementById('mSettingsLogoutBtn');
+    if (mLogoutBtn) {
+      mLogoutBtn.addEventListener('click', () => {
+        if (confirm('Sign out of MUSIC account?')) {
+          localStorage.removeItem('music_auth_session');
+          window.location.replace('/auth.html');
+        }
+      });
+    }
 
     // Play All from Library
     this.playAllCustomBtn.addEventListener('click', () => {
@@ -1231,6 +1321,90 @@ class MusicApp {
     if (!this.isDspInit) {
       this.setupAudioDSP();
     }
+  }
+
+  openMobileSettingsModal() {
+    if (!this.mobileSettingsModal) return;
+    this.mobileSettingsModal.classList.add('active');
+    this.updateMobileSettingsUI();
+  }
+
+  closeMobileSettingsModal() {
+    if (!this.mobileSettingsModal) return;
+    this.mobileSettingsModal.classList.remove('active');
+  }
+
+  updateMobileSettingsUI() {
+    // Quality info
+    const qualityDescEl = document.getElementById('mCurrentQualityDesc');
+    const qualityBadgeEl = document.getElementById('mCurrentQualityBadge');
+    if (qualityBadgeEl) {
+      const labels = {
+        '4k': '4K MASTER',
+        '720p': '320K MP4',
+        '1080p': '320K MP3',
+        '480p': '160K MP4',
+        '360p': '96K MP4'
+      };
+      qualityBadgeEl.textContent = labels[this.currentFormat] || '320K MP4';
+    }
+    if (qualityDescEl) {
+      qualityDescEl.textContent = `${this.getFormatLabel(this.currentFormat)} (Active)`;
+    }
+
+    // Sleep Timer info
+    const sleepDescEl = document.getElementById('mSleepStatusDesc');
+    const sleepBadgeEl = document.getElementById('mSleepBadge');
+    if (sleepBadgeEl && sleepDescEl) {
+      if (this.sleepRemainingSeconds > 0) {
+        const mins = Math.ceil(this.sleepRemainingSeconds / 60);
+        sleepBadgeEl.textContent = `${mins}m`;
+        sleepBadgeEl.style.color = '#1ed760';
+        sleepDescEl.textContent = `Auto-stopping playback in ~${mins} minutes`;
+      } else {
+        sleepBadgeEl.textContent = 'OFF';
+        sleepBadgeEl.style.color = '';
+        sleepDescEl.textContent = 'Timer is off (Auto-pause music at night)';
+      }
+    }
+
+    // Playback Speed / Lo-Fi info
+    const speedDescEl = document.getElementById('mSpeedDesc');
+    const speedBadgeEl = document.getElementById('mSpeedBadge');
+    if (speedBadgeEl && speedDescEl) {
+      if (this.isSlowedActive) {
+        speedBadgeEl.textContent = 'LO-FI';
+        speedBadgeEl.style.color = '#eab308';
+        speedDescEl.textContent = '0.85x Slowed + Reverb Lo-Fi active';
+      } else {
+        speedBadgeEl.textContent = `${this.playbackSpeed}x`;
+        speedBadgeEl.style.color = '';
+        speedDescEl.textContent = this.playbackSpeed === 1.0 ? 'Normal 1.0x playback speed' : `${this.playbackSpeed}x custom speed`;
+      }
+    }
+
+    // Karaoke Script info
+    const karaokeScriptBadge = document.getElementById('mKaraokeScriptBadge');
+    if (karaokeScriptBadge) {
+      karaokeScriptBadge.textContent = this.karaokeScript === 'tanglish' ? 'Tanglish' : 'Tamil';
+    }
+
+    // User profile info from auth session
+    try {
+      const raw = localStorage.getItem('music_auth_session');
+      if (raw) {
+        const session = JSON.parse(raw);
+        if (session && session.user) {
+          const u = session.user;
+          const av = document.getElementById('mSettingsAvatar');
+          const un = document.getElementById('mSettingsUsername');
+          const em = document.getElementById('mSettingsEmail');
+          if (av) av.textContent = u.avatar || (u.username ? u.username.charAt(0).toUpperCase() : 'M');
+          if (un) un.textContent = u.username || 'User';
+          if (em) em.textContent = u.email || 'user@example.com';
+        }
+      }
+    } catch (e) {}
   }
 
   // ==========================================
@@ -1425,6 +1599,7 @@ class MusicApp {
 
     // Apply the real acoustic DSP fidelity profile immediately!
     this.applyQualityFidelityProfile(this.currentFormat);
+    this.updateMobileSettingsUI();
   }
 
   updateVolumeIcon(vol) {
@@ -2519,6 +2694,7 @@ class MusicApp {
     if (this.sleepActiveStatus) {
       this.sleepActiveStatus.style.display = (this.sleepTimer || this.sleepStopOnEnd) ? 'flex' : 'none';
     }
+    this.updateMobileSettingsUI();
   }
 
   initSleepTimerEvents() {
@@ -2597,9 +2773,9 @@ class MusicApp {
       if (this.sidebarPwaInstallBtn) this.sidebarPwaInstallBtn.style.display = 'none';
     });
 
-    const triggerInstall = async () => {
+    this.triggerPwaInstall = async () => {
       if (!this.deferredPrompt) {
-        this.showToast('📱 Open in browser and look for "Add to Home Screen" option');
+        this.showToast('📱 In your mobile browser, tap Share or Menu (⋮) and select "Add to Home Screen"');
         return;
       }
       this.deferredPrompt.prompt();
@@ -2610,8 +2786,8 @@ class MusicApp {
       this.deferredPrompt = null;
     };
 
-    if (this.headerPwaInstallBtn) this.headerPwaInstallBtn.addEventListener('click', triggerInstall);
-    if (this.sidebarPwaInstallBtn) this.sidebarPwaInstallBtn.addEventListener('click', triggerInstall);
+    if (this.headerPwaInstallBtn) this.headerPwaInstallBtn.addEventListener('click', () => this.triggerPwaInstall());
+    if (this.sidebarPwaInstallBtn) this.sidebarPwaInstallBtn.addEventListener('click', () => this.triggerPwaInstall());
   }
 
   // ==================================================================================
@@ -2866,6 +3042,7 @@ class MusicApp {
       if (this.playerSpeedBtn) this.playerSpeedBtn.classList.remove('slowed-active');
       this.showToast('Speed restored to normal 1x');
     }
+    this.updateMobileSettingsUI();
   }
 
   openSpeedModal() {

@@ -463,6 +463,10 @@
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
       <span>Audio FX</span>
     </button>
+    <button class="mobile-nav-item" id="mNavSettings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <span>Settings</span>
+    </button>
   </nav>
 
   <!-- Fullscreen / Mobile Now Playing Sheet -->
@@ -1101,6 +1105,151 @@
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
             <span>More Sharing Options (System Dialog)</span>
           </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Settings & Features Hub Modal -->
+  <div class="mobile-settings-modal" id="mobileSettingsModal">
+    <div class="modal-backdrop" id="closeMobileSettingsBackdrop"></div>
+    <div class="mobile-settings-dialog">
+      <div class="mobile-settings-header">
+        <div class="mobile-settings-drag-bar"></div>
+        <div class="mobile-settings-title-row">
+          <div class="dialog-badge">APP SETTINGS & FEATURES</div>
+          <button class="close-dialog-btn" id="closeMobileSettingsBtn">✕</button>
+        </div>
+        <h2 class="mobile-settings-heading">Settings & Preferences</h2>
+      </div>
+
+      <div class="mobile-settings-body">
+        <!-- User Profile Card -->
+        <div class="settings-card user-profile-card">
+          <div class="user-profile-left">
+            <div class="settings-avatar" id="mSettingsAvatar">M</div>
+            <div class="user-profile-text">
+              <div class="user-profile-name" id="mSettingsUsername">madesh R</div>
+              <div class="user-profile-email" id="mSettingsEmail">madesh11092006@gmail.com</div>
+              <span class="user-status-pill">● Active Premium Account</span>
+            </div>
+          </div>
+          <button class="settings-logout-btn" id="mSettingsLogoutBtn" title="Sign Out">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+
+        <!-- Section: Audio Playback & Quality -->
+        <div class="settings-section">
+          <div class="settings-section-title">AUDIO STREAM & QUALITY</div>
+          
+          <div class="settings-row" id="mOpenQualityBtn">
+            <div class="settings-row-left">
+              <div class="settings-icon-box green">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Audio Quality & Bitrate</div>
+                <div class="settings-row-desc" id="mCurrentQualityDesc">720p HD Studio Master (320 kbps MP4)</div>
+              </div>
+            </div>
+            <span class="settings-badge" id="mCurrentQualityBadge">320K MP4</span>
+          </div>
+
+          <div class="settings-row" id="mOpenAudioFXBtn">
+            <div class="settings-row-left">
+              <div class="settings-icon-box purple">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Audio Engine & Equalizer</div>
+                <div class="settings-row-desc">3D Spatial, Dolby Atmos, 5-Band EQ</div>
+              </div>
+            </div>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+          </div>
+        </div>
+
+        <!-- Section: Bedtime & Speed Suite -->
+        <div class="settings-section">
+          <div class="settings-section-title">SMART PLAYBACK FEATURES</div>
+
+          <div class="settings-row" id="mOpenSleepTimerBtn">
+            <div class="settings-row-left">
+              <div class="settings-icon-box blue">
+                <span style="font-size:18px;">🌙</span>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Bedtime Sleep Timer</div>
+                <div class="settings-row-desc" id="mSleepStatusDesc">Timer is off (Auto-pause music at night)</div>
+              </div>
+            </div>
+            <span class="settings-badge" id="mSleepBadge">OFF</span>
+          </div>
+
+          <div class="settings-row" id="mOpenSpeedBtn">
+            <div class="settings-row-left">
+              <div class="settings-icon-box gold">
+                <span style="font-size:18px;">✨</span>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Lo-Fi Slowed & Playback Speed</div>
+                <div class="settings-row-desc" id="mSpeedDesc">Normal 1.0x (Lo-Fi Slowed+Reverb available)</div>
+              </div>
+            </div>
+            <span class="settings-badge" id="mSpeedBadge">1.0x</span>
+          </div>
+
+          <div class="settings-row" id="mToggleKaraokeScriptBtn">
+            <div class="settings-row-left">
+              <div class="settings-icon-box cyan">
+                <span style="font-size:18px;">🎤</span>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Lyrics & Karaoke Language</div>
+                <div class="settings-row-desc">Switch between Tamil script and Tanglish</div>
+              </div>
+            </div>
+            <span class="settings-badge" id="mKaraokeScriptBadge">Tamil</span>
+          </div>
+        </div>
+
+        <!-- Section: Mobile App & Cache -->
+        <div class="settings-section">
+          <div class="settings-section-title">MOBILE APPLICATION</div>
+
+          <div class="settings-row" id="mInstallAppRow">
+            <div class="settings-row-left">
+              <div class="settings-icon-box green">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Install Mobile App (PWA)</div>
+                <div class="settings-row-desc">Add MUSIC to your phone home screen for 1-tap launch</div>
+              </div>
+            </div>
+            <button class="btn-spotify-sm" id="mInstallAppBtn">Install</button>
+          </div>
+
+          <div class="settings-row" id="mReloadCacheRow">
+            <div class="settings-row-left">
+              <div class="settings-icon-box red">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              </div>
+              <div class="settings-row-info">
+                <div class="settings-row-label">Clear & Reload App Cache</div>
+                <div class="settings-row-desc">Fetch latest version (v9) & reset offline storage</div>
+              </div>
+            </div>
+            <button class="btn-spotify-sm" id="mReloadCacheBtn">Reload</button>
+          </div>
+        </div>
+
+        <!-- App Footer Info -->
+        <div class="mobile-settings-footer">
+          <div class="app-version-badge">MUSIC v2.0 • Hi-Res 320k Audio</div>
+          <p class="app-version-sub">Pure hardware audio decoding • Akamai Global CDN</p>
         </div>
       </div>
     </div>

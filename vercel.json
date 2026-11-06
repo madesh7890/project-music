@@ -6,6 +6,18 @@
       "destination": "/api/index.js"
     },
     {
+      "source": "/login",
+      "destination": "/public/auth.html"
+    },
+    {
+      "source": "/signin",
+      "destination": "/public/auth.html"
+    },
+    {
+      "source": "/auth",
+      "destination": "/public/auth.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/public/$1"
     }

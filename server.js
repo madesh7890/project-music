@@ -945,6 +945,11 @@ app.use('/api/proxy-audio', (req, res) => {
   clientReq.end();
 });
 
+// Auth route shortcuts
+app.get(['/login', '/signin', '/auth'], (req, res) => {
+  res.redirect('/auth.html');
+});
+
 // Catch-all: serve index.html
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
