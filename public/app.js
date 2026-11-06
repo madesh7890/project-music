@@ -789,12 +789,23 @@ class MusicApp {
         if (!this.analyser) this.setupVisualizer();
         this.startVisualizer();
       }
+      // Mobile waveform: resume animation when playing
+      if (this._isMobileDevice && this.isVisualizerActive) {
+        const mw = document.getElementById('mobileWaveform');
+        if (mw) {
+          mw.style.display = 'flex';
+          mw.classList.remove('paused');
+        }
+      }
     });
 
     this.audio.addEventListener('pause', () => {
       this.isPlaying = false;
       this.updatePlayStateUI();
       this.stopVisualizer();
+      // Mobile waveform: pause animation
+      const mw = document.getElementById('mobileWaveform');
+      if (mw) mw.classList.add('paused');
     });
 
     this.audio.addEventListener('ended', () => {
@@ -3114,13 +3125,24 @@ class MusicApp {
       this.sheetToggleVisualizer.addEventListener('click', () => {
         this.isVisualizerActive = !this.isVisualizerActive;
         this.sheetToggleVisualizer.classList.toggle('active', this.isVisualizerActive);
-        if (this.isVisualizerActive) {
-          if (!this.analyser) this.setupVisualizer();
-          this.startVisualizer();
-          this.showToast('🌊 Neon Visualizer ON');
+
+        if (this._isMobileDevice) {
+          // Mobile: CSS animated waveform (no Web Audio API needed)
+          const mobileWave = document.getElementById('mobileWaveform');
+          if (mobileWave) {
+            mobileWave.style.display = this.isVisualizerActive ? 'flex' : 'none';
+          }
+          this.showToast(this.isVisualizerActive ? '🌊 Waveform ON' : '🌊 Waveform OFF');
         } else {
-          this.stopVisualizer();
-          this.showToast('Visualizer OFF');
+          // Desktop: Real Web Audio analyser visualizer
+          if (this.isVisualizerActive) {
+            if (!this.analyser) this.setupVisualizer();
+            this.startVisualizer();
+            this.showToast('🌊 Neon Visualizer ON');
+          } else {
+            this.stopVisualizer();
+            this.showToast('Visualizer OFF');
+          }
         }
       });
     }

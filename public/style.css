@@ -1755,9 +1755,10 @@ body {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1.5px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.4); /* OFF state: dimmed */
+  /* OFF state: dark black background */
+  background: #111111;
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.35);
   padding: 12px 6px;
   border-radius: 12px;
   font-size: 0.75rem;
@@ -1773,45 +1774,46 @@ body {
   overflow: hidden;
 }
 
-/* OFF state indicator */
+/* OFF badge */
 .quick-fx-btn:not(.active)::after {
   content: 'OFF';
   position: absolute;
   top: 4px;
   right: 6px;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 900;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
   padding: 1px 4px;
   border-radius: 4px;
 }
 
-/* ON state indicator */
+/* ON badge */
 .quick-fx-btn.active::after {
   content: 'ON';
   position: absolute;
   top: 4px;
   right: 6px;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 900;
   letter-spacing: 0.5px;
-  color: var(--spotify-green);
-  background: rgba(30, 215, 96, 0.15);
+  color: #1ed760;
+  background: rgba(30, 215, 96, 0.18);
   padding: 1px 4px;
   border-radius: 4px;
 }
 
+/* ON state: green glow */
 .quick-fx-btn.active {
-  background: rgba(30, 215, 96, 0.12);
-  border-color: rgba(30, 215, 96, 0.45);
-  color: var(--spotify-green);
-  box-shadow: 0 0 12px rgba(30, 215, 96, 0.15);
+  background: rgba(30, 215, 96, 0.14);
+  border-color: rgba(30, 215, 96, 0.5);
+  color: #1ed760;
+  box-shadow: 0 0 14px rgba(30, 215, 96, 0.18), inset 0 0 10px rgba(30, 215, 96, 0.06);
 }
 
 .quick-fx-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.93);
 }
 
 .quick-fx-icon {
@@ -2790,6 +2792,58 @@ input:checked + .slider.round:before {
   opacity: 0.9;
   filter: drop-shadow(0 0 12px rgba(30, 215, 96, 0.4));
   transition: opacity 0.3s ease;
+}
+
+/* ── Mobile CSS Animated Waveform ───────────────────────────────────────── */
+.mobile-waveform {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none; /* hidden by default, shown via JS on mobile when ON */
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 3;
+  pointer-events: none;
+  height: 40px;
+}
+
+.mobile-waveform span {
+  display: block;
+  width: 4px;
+  border-radius: 3px;
+  background: #1ed760;
+  box-shadow: 0 0 8px rgba(30, 215, 96, 0.8);
+  animation: waveBar 0.9s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+/* Each bar: different height & delay for organic wave effect */
+.mobile-waveform span:nth-child(1)  { height: 10px; animation-delay: 0.0s; }
+.mobile-waveform span:nth-child(2)  { height: 20px; animation-delay: 0.1s; }
+.mobile-waveform span:nth-child(3)  { height: 30px; animation-delay: 0.2s; }
+.mobile-waveform span:nth-child(4)  { height: 22px; animation-delay: 0.3s; }
+.mobile-waveform span:nth-child(5)  { height: 36px; animation-delay: 0.15s; }
+.mobile-waveform span:nth-child(6)  { height: 28px; animation-delay: 0.25s; }
+.mobile-waveform span:nth-child(7)  { height: 40px; animation-delay: 0.05s; }
+.mobile-waveform span:nth-child(8)  { height: 24px; animation-delay: 0.35s; }
+.mobile-waveform span:nth-child(9)  { height: 32px; animation-delay: 0.12s; }
+.mobile-waveform span:nth-child(10) { height: 18px; animation-delay: 0.28s; }
+.mobile-waveform span:nth-child(11) { height: 38px; animation-delay: 0.08s; }
+.mobile-waveform span:nth-child(12) { height: 26px; animation-delay: 0.22s; }
+.mobile-waveform span:nth-child(13) { height: 16px; animation-delay: 0.18s; }
+.mobile-waveform span:nth-child(14) { height: 30px; animation-delay: 0.32s; }
+.mobile-waveform span:nth-child(15) { height: 12px; animation-delay: 0.42s; }
+
+@keyframes waveBar {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.5; }
+  50%       { transform: scaleY(1);   opacity: 1; }
+}
+
+/* Paused state: bars freeze */
+.mobile-waveform.paused span {
+  animation-play-state: paused;
+  opacity: 0.3;
 }
 
 /* 2. Real-Time Synchronized Karaoke Lyrics */
