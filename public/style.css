@@ -2317,11 +2317,89 @@ input:checked + .slider.round:before {
   }
 
   .header-right {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  /* On mobile: hide all header-right pills except the avatar */
+  .header-right .header-action-pill,
+  .header-right .pwa-pill,
+  .header-right .quality-pill-btn,
+  .header-right .audio-fx-pill-btn {
     display: none;
   }
 
+  /* Mobile avatar: clean circle icon, no text, no cut-off */
+  .user-avatar-pill {
+    padding: 0;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1.5px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    gap: 0;
+  }
+
+  .user-avatar-pill .user-name-text {
+    display: none;
+  }
+
+  .user-avatar-letter {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+    font-weight: 900;
+  }
+
+  /* Top header row: MUSIC | search bar | avatar */
+  .top-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    margin-bottom: 10px;
+    background: rgba(10, 10, 10, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .header-left {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mobile-brand-title {
+    font-size: 1.3rem;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #fff;
+    white-space: nowrap;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #fff 30%, #1ed760 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   .search-box {
-    padding: 6px 14px;
+    flex: 1;
+    min-width: 0;
+    padding: 7px 14px;
   }
 
   .mobile-bottom-nav {
