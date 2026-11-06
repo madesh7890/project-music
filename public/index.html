@@ -1256,7 +1256,9 @@
   </div>
 
   <!-- Audio Element -->
-  <audio id="audioElement" preload="auto" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+  <!-- crossorigin removed: mobile browsers force software-decode path causing crackling when CORS mode is active -->
+  <!-- preload=metadata on mobile: reduces initial buffer stress & prevents network saturation on 4G/5G -->
+  <audio id="audioElement" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
 
   <!-- Notification Toast -->
   <div class="toast" id="toast"></div>

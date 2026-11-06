@@ -72,7 +72,12 @@ class MusicApp {
     this.checkUrlShareParams();
 
     // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere
+    // Mobile guard: NEVER create AudioContext on mobile — native hardware engine handles audio directly
+    const _isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
+    this._isMobileDevice = _isMobileDevice;
     const unlockAudio = () => {
+      if (_isMobileDevice) return; // Mobile: pure native hardware decode, no Web Audio API
       if (!this.isDspInit) {
         this.setupAudioDSP();
       }
@@ -762,7 +767,7 @@ class MusicApp {
     this.audio.addEventListener('play', () => {
       this.isPlaying = true;
       this.updatePlayStateUI();
-      if (!this.isDspInit) {
+      if (!this._isMobileDevice && !this.isDspInit) {
         this.setupAudioDSP();
       }
       if (this.audioCtx && this.audioCtx.state === 'suspended') {
@@ -773,14 +778,14 @@ class MusicApp {
     this.audio.addEventListener('playing', () => {
       this.isPlaying = true;
       this.updatePlayStateUI();
-      if (!this.isDspInit) {
+      if (!this._isMobileDevice && !this.isDspInit) {
         this.setupAudioDSP();
       }
       if (this.audioCtx && this.audioCtx.state === 'suspended') {
         this.audioCtx.resume();
       }
-      // Start visualizer if active
-      if (this.isVisualizerActive) {
+      // Start visualizer if active (desktop only — mobile has no analyser node)
+      if (this.isVisualizerActive && !this._isMobileDevice) {
         if (!this.analyser) this.setupVisualizer();
         this.startVisualizer();
       }
@@ -839,12 +844,21 @@ class MusicApp {
     this.audio.addEventListener('error', (e) => {
       console.warn('Audio direct stream error, attempting fallback...', e);
       if (this.currentSong && this.currentSong.streams) {
-        const fallback = this.currentSong.streams.stream_160 || this.currentSong.streams.stream_320 || this.currentSong.playUrl;
+        // Mobile: Try direct lower-quality CDN stream (avoid proxy — Vercel 10s timeout causes freeze)
+        // Desktop: Proxy fallback acceptable
+        const fallback = this.currentSong.streams.stream_160 || this.currentSong.streams.stream_96 || this.currentSong.playUrl;
         if (fallback) {
-          const proxyUrl = `/api/proxy-audio?url=${encodeURIComponent(fallback)}`;
-          if (this.audio.src !== proxyUrl) {
-            console.log('Switching to backup proxy stream:', proxyUrl);
-            this.audio.src = proxyUrl;
+          let fallbackUrl = fallback;
+          if (!this._isMobileDevice) {
+            // Desktop only: use proxy fallback
+            fallbackUrl = `/api/proxy-audio?url=${encodeURIComponent(fallback)}`;
+          } else {
+            // Mobile: direct CDN fallback (force HTTPS)
+            fallbackUrl = fallback.startsWith('http:') ? fallback.replace('http:', 'https:') : fallback;
+          }
+          if (this.audio.src !== fallbackUrl) {
+            console.log('Switching to fallback stream:', this._isMobileDevice ? 'direct CDN' : 'proxy', fallbackUrl);
+            this.audio.src = fallbackUrl;
             this.audio.load();
             this.audio.play().catch(() => {});
           }
@@ -1318,7 +1332,7 @@ class MusicApp {
 
   openAudioFXModal() {
     this.audioFXModal.classList.add('active');
-    if (!this.isDspInit) {
+    if (!this._isMobileDevice && !this.isDspInit) {
       this.setupAudioDSP();
     }
   }
@@ -1723,7 +1737,21 @@ class MusicApp {
     }
 
     this.currentSong = song;
-    const audioUrl = this.getStreamUrlForFormat(song, this.currentFormat);
+
+    // Mobile: auto-downgrade to 480p (160kbps AAC) for stable buffer on 4G/WiFi
+    // This prevents buffer underruns that cause crackling & stuck playback
+    let playFormat = this.currentFormat;
+    if (this._isMobileDevice) {
+      const highFormats = ['4k', '720p', '1080p', 'mp3_320', 'mp4_320'];
+      const userSetFormat = localStorage.getItem('music_format_user_set');
+      if (highFormats.includes(playFormat) && !userSetFormat) {
+        playFormat = '480p'; // 160kbps is smooth on mobile without network pressure
+      }
+      // Mobile: always use metadata preload (never 'auto' — prevents premature buffering)
+      this.audio.preload = 'metadata';
+    }
+
+    const audioUrl = this.getStreamUrlForFormat(song, playFormat);
 
     // Ensure volume is unmuted and audible
     this.audio.muted = false;
@@ -1733,8 +1761,8 @@ class MusicApp {
       this.updateVolumeIcon(0.90);
     }
 
-    // Audio context initialization on user gesture
-    if (!this.isDspInit) {
+    // Audio context initialization on user gesture (desktop only)
+    if (!this._isMobileDevice && !this.isDspInit) {
       this.setupAudioDSP();
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {

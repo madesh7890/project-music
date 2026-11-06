@@ -4807,3 +4807,305 @@ body {
     margin: auto;
   }
 }
+
+
+/* ==========================================================================
+   MOBILE RESPONSIVE v10 — Full Screen Optimisation
+   Fixes: layout overflow, touch targets, bottom-sheet modals, safe-area
+   ========================================================================== */
+
+@media (max-width: 768px) {
+
+  /* ── Root & Layout ─────────────────────────────────────────────────────── */
+  .app-layout {
+    height: 100dvh; /* Dynamic viewport height for mobile (handles address bar) */
+    overflow: hidden;
+  }
+
+  .main-content {
+    height: calc(100dvh - 56px); /* 56px = mobile top header */
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding: 12px 12px 160px 12px; /* 160px = bottom nav + mini player space */
+    box-sizing: border-box;
+    background: linear-gradient(185deg, #161f18 0%, #111111 300px, #0a0a0a 100%);
+  }
+
+  /* ── Top Header ────────────────────────────────────────────────────────── */
+  .top-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,10,10,0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* ── Search Bar ────────────────────────────────────────────────────────── */
+  .search-input {
+    min-height: 44px; /* Apple HIG minimum touch target */
+    font-size: 16px;  /* Prevents iOS zoom-in on focus */
+    border-radius: 22px;
+  }
+
+  .search-box {
+    flex: 1;
+  }
+
+  /* ── Song Cards Grid ───────────────────────────────────────────────────── */
+  .songs-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  /* ── Shelf / Horizontal Scroll ─────────────────────────────────────────── */
+  .shelf-row {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding-bottom: 8px;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .shelf-row::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  .shelf-row .song-card {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    width: 148px;
+  }
+
+  /* ── Song Card Touch Feedback ───────────────────────────────────────────── */
+  .song-card {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .song-card:active {
+    transform: scale(0.96);
+    transition: transform 0.1s ease;
+  }
+
+  /* ── Hero Banner ───────────────────────────────────────────────────────── */
+  .hero-banner {
+    border-radius: 16px;
+    min-height: 160px;
+    padding: 16px;
+  }
+
+  .hero-title {
+    font-size: 1.4rem;
+    line-height: 1.3;
+  }
+
+  .artwork-frame {
+    width: 140px;
+    height: 140px;
+  }
+
+  /* ── Mini Player Bar ───────────────────────────────────────────────────── */
+  .player-bar {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mobile-nav-height));
+    left: 8px;
+    right: 8px;
+    width: auto;
+    border-radius: 10px;
+    height: 62px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 10px;
+  }
+
+  /* ── Bottom Nav Safe Area ──────────────────────────────────────────────── */
+  .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ── Full Screen Music Sheet ───────────────────────────────────────────── */
+  .fullscreen-sheet {
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sheet-artwork {
+    width: min(260px, 72vw);
+    height: min(260px, 72vw);
+    border-radius: 16px;
+  }
+
+  .sheet-song-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+  }
+
+  .sheet-song-artist {
+    font-size: 0.9rem;
+  }
+
+  /* ── Modals → Bottom Sheet Style on Mobile ──────────────────────────────── */
+  .modal-backdrop .modal-dialog,
+  .audio-fx-dialog,
+  .quality-dialog,
+  .download-dialog,
+  .sleep-dialog,
+  .speed-dialog,
+  .playlist-dialog {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    animation: slideUpSheet 0.28s cubic-bezier(0.34, 1.26, 0.64, 1) forwards !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px) !important;
+  }
+
+  @keyframes slideUpSheet {
+    from { transform: translateY(100%); opacity: 0.6; }
+    to   { transform: translateY(0);    opacity: 1;   }
+  }
+
+  /* ── Queue Drawer ──────────────────────────────────────────────────────── */
+  .queue-drawer {
+    width: 100%;
+    height: 70dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  /* ── Shelf Title ────────────────────────────────────────────────────────── */
+  .shelf-title {
+    font-size: 1rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+  }
+
+  /* ── Toast ──────────────────────────────────────────────────────────────── */
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mobile-nav-height) + 70px);
+    left: 16px;
+    right: 16px;
+    text-align: center;
+    max-width: none;
+    font-size: 0.85rem;
+    border-radius: 12px;
+  }
+
+  /* ── Settings Modal Full Screen ─────────────────────────────────────────── */
+  .mobile-settings-modal {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .mobile-settings-dialog {
+    max-height: 100dvh;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+    border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Filter/Language Pills ──────────────────────────────────────────────── */
+  .filter-pills {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 0 8px 0;
+  }
+
+  .filter-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-pill {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    min-height: 36px;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    padding: 6px 16px;
+  }
+
+  /* ── Now Playing Buttons ────────────────────────────────────────────────── */
+  .sheet-control-btn,
+  .mobile-nav-item,
+  .player-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Smooth scroll snap for content ──────────────────────────────────────── */
+  .shelves-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── App Layout safe padding ─────────────────────────────────────────────── */
+  .app-layout {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* ── Prevent text overflow ───────────────────────────────────────────────── */
+  .song-title,
+  .song-artist {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    font-size: 0.82rem;
+  }
+
+  .song-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+}
+
+/* ── Extra small screens (< 390px, e.g. iPhone SE) ─────────────────────────── */
+@media (max-width: 390px) {
+  .songs-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .shelf-row .song-card {
+    width: 130px;
+  }
+
+  .sheet-artwork {
+    width: min(220px, 75vw);
+    height: min(220px, 75vw);
+  }
+
+  .hero-title {
+    font-size: 1.2rem;
+  }
+}
