@@ -2187,9 +2187,48 @@ class MusicApp {
     this.customView.style.display = 'none';
 
     this.searchResultsTitle.textContent = `Results for "${query}"`;
-    this.searchResultsSubtitle.textContent = `Found ${songs.length} playable songs from old to new`;
+    this.searchResultsSubtitle.textContent = `Found ${songs.length} songs`;
 
-    this.searchResultsGrid.innerHTML = '';
+    // Store for filter reuse
+    this._lastSearchSongs = songs;
+    this._lastSearchQuery = query;
+
+    // ── Horizontal swipe shelf (top 8 matches) ──
+    const shelfContainer = document.getElementById('searchShelfContainer');
+    const shelfRow = document.getElementById('searchShelfRow');
+    if (shelfContainer && shelfRow) {
+      if (songs.length > 0) {
+        shelfRow.innerHTML = '';
+        songs.slice(0, 8).forEach(song => {
+          const card = this.createSongCard(song, songs);
+          shelfRow.appendChild(card);
+        });
+        shelfContainer.style.display = 'block';
+      } else {
+        shelfContainer.style.display = 'none';
+      }
+    }
+
+    // ── Wire filter pills (once per new search) ──
+    const filterBar = document.getElementById('searchFilterBar');
+    if (filterBar) {
+      // Reset to All active
+      filterBar.querySelectorAll('.search-filter-pill').forEach(p => {
+        p.classList.toggle('active', p.dataset.filter === 'all');
+      });
+      // Remove old listeners by cloning
+      const newFilterBar = filterBar.cloneNode(true);
+      filterBar.parentNode.replaceChild(newFilterBar, filterBar);
+      newFilterBar.querySelectorAll('.search-filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          newFilterBar.querySelectorAll('.search-filter-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          this._applySearchFilter(pill.dataset.filter, songs);
+        });
+      });
+    }
+
+    // Show empty-state or render all songs
     if (songs.length === 0) {
       this.searchResultsGrid.innerHTML = `
         <div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-muted);">
@@ -2217,17 +2256,58 @@ class MusicApp {
       return;
     }
 
-    songs.forEach(song => {
-      const card = this.createSongCard(song, songs);
-      this.searchResultsGrid.appendChild(card);
-    });
-
+    // Default: show all songs (no filter)
+    this._applySearchFilter('all', songs);
     this.searchResultsSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  /** Sort / filter the search grid by the selected pill */
+  _applySearchFilter(filter, songs) {
+    let filtered = [...songs];
+
+    if (filter === 'old-to-new') {
+      filtered.sort((a, b) => (parseInt(a.year) || 9999) - (parseInt(b.year) || 9999));
+    } else if (filter === 'new-to-old') {
+      filtered.sort((a, b) => (parseInt(b.year) || 0) - (parseInt(a.year) || 0));
+    } else if (filter === 'retro') {
+      filtered = filtered.filter(s => parseInt(s.year) < 2000);
+      filtered.sort((a, b) => (parseInt(a.year) || 9999) - (parseInt(b.year) || 9999));
+    } else if (filter === 'albums') {
+      filtered = filtered.filter(s => s.album && s.album.trim().length > 0);
+    } else if (filter === 'artists') {
+      filtered.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+    }
+    // 'all' — keep original order
+
+    const grid = this.searchResultsGrid;
+    grid.innerHTML = '';
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text-muted);">
+          <div style="font-size:36px;margin-bottom:10px;">🎵</div>
+          <h3 style="color:#fff;margin-bottom:8px;">No results for this filter</h3>
+          <p style="font-size:0.88rem;">Try a different filter above</p>
+        </div>`;
+      return;
+    }
+
+    filtered.forEach(song => {
+      const card = this.createSongCard(song, filtered);
+      grid.appendChild(card);
+    });
   }
 
   hideSearchResults() {
     this.searchResultsSection.style.display = 'none';
     this.homeView.style.display = 'block';
+    // Reset filter pills to 'All'
+    document.querySelectorAll('.search-filter-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.filter === 'all');
+    });
+    // Hide swipe shelf
+    const shelf = document.getElementById('searchShelfContainer');
+    if (shelf) shelf.style.display = 'none';
   }
 
   async handleLanguageFilter(lang) {

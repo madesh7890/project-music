@@ -225,6 +225,27 @@
           </div>
           <button class="close-search-btn" id="closeSearchSectionBtn">✕ Back to Home</button>
         </div>
+
+        <!-- Google & YouTube Style Filter Bar (All, Old to New, New to Old, Albums, Artists) -->
+        <div class="search-filter-bar" id="searchFilterBar">
+          <button class="search-filter-pill active" data-filter="all">🔥 All</button>
+          <button class="search-filter-pill" data-filter="old-to-new">⏳ Old to New</button>
+          <button class="search-filter-pill" data-filter="new-to-old">⚡ New to Old</button>
+          <button class="search-filter-pill" data-filter="albums">🎬 Albums & Movies</button>
+          <button class="search-filter-pill" data-filter="retro">📻 80s & 90s Retro</button>
+          <button class="search-filter-pill" data-filter="artists">🎤 By Artists</button>
+        </div>
+
+        <!-- Horizontal Swipe Shelf for Top Matches (Swipe left to right) -->
+        <div class="search-shelf-container" id="searchShelfContainer" style="display: none;">
+          <div class="search-shelf-header">
+            <span class="search-shelf-title">✨ Swipe Across Top Matches</span>
+            <span class="search-shelf-hint">Swipe ◄ ►</span>
+          </div>
+          <div class="shelf-row" id="searchShelfRow"></div>
+        </div>
+
+        <!-- Full Songs Grid -->
         <div class="songs-grid" id="searchResultsGrid"></div>
       </section>
 

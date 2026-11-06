@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v16 — Network-First strategy
-const CACHE_NAME = 'music-app-v16';
+// MUSIC - Service Worker v17 — Search filter pills + swipe shelf
+const CACHE_NAME = 'music-app-v17';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
