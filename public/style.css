@@ -1741,34 +1741,82 @@ body {
 }
 
 .sheet-quick-fx-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  justify-content: space-between;
   margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .quick-fx-btn {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid transparent;
-  color: var(--text-subdued);
-  padding: 10px 6px;
-  border-radius: var(--radius-sm);
-  font-size: 0.72rem;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4); /* OFF state: dimmed */
+  padding: 12px 6px;
+  border-radius: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  transition: var(--transition);
+  transition: all 0.2s ease;
+  min-height: 64px;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+/* OFF state indicator */
+.quick-fx-btn:not(.active)::after {
+  content: 'OFF';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* ON state indicator */
+.quick-fx-btn.active::after {
+  content: 'ON';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: var(--spotify-green);
+  background: rgba(30, 215, 96, 0.15);
+  padding: 1px 4px;
+  border-radius: 4px;
 }
 
 .quick-fx-btn.active {
-  background: rgba(30, 215, 96, 0.15);
-  border-color: rgba(30, 215, 96, 0.4);
+  background: rgba(30, 215, 96, 0.12);
+  border-color: rgba(30, 215, 96, 0.45);
   color: var(--spotify-green);
+  box-shadow: 0 0 12px rgba(30, 215, 96, 0.15);
+}
+
+.quick-fx-btn:active {
+  transform: scale(0.94);
+}
+
+.quick-fx-icon {
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 .sheet-lyrics-card {
@@ -2230,7 +2278,13 @@ input:checked + .slider.round:before {
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  z-index: 250;
+  z-index: 9999;
+  /* Prevent toast from being cut off on any screen size */
+  max-width: calc(100vw - 32px);
+  width: max-content;
+  white-space: nowrap;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .toast.show {
@@ -4944,19 +4998,68 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  .sheet-artwork {
-    width: min(260px, 72vw);
-    height: min(260px, 72vw);
-    border-radius: 16px;
+  /* Sheet body fits entire screen, no overflow */
+  .sheet-body {
+    max-width: 100%;
+    padding: 0 20px;
+    box-sizing: border-box;
+  }
+
+  /* Artwork: auto-size based on screen height so controls always visible */
+  .sheet-artwork-wrapper {
+    width: min(72vw, 300px);
+    padding-bottom: min(72vw, 300px);
+    margin: 0 auto 20px auto;
   }
 
   .sheet-song-title {
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .sheet-song-artist {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* FX bar: 3×2 grid so all 6 buttons visible */
+  .sheet-quick-fx-bar {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .quick-fx-btn {
+    min-height: 60px;
+    font-size: 0.72rem;
+    padding: 10px 4px;
+    border-radius: 10px;
+  }
+
+  .quick-fx-icon {
+    font-size: 1.1rem;
+  }
+
+  /* Toast: always centered & never cut off on mobile */
+  .toast {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--mobile-nav-height) + 72px);
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: calc(100vw - 32px);
+    transform: translateX(0) translateY(30px);
+    white-space: normal;
+    text-align: center;
+  }
+
+  .toast.show {
+    transform: translateX(0) translateY(0);
   }
 
   /* ── Modals → Bottom Sheet Style on Mobile ──────────────────────────────── */
