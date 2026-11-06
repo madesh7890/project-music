@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v18 — Real-time Web Audio DSP on mobile (Bass Boost, Dolby Atmos, 3D Spatial)
-const CACHE_NAME = 'music-app-v18';
+// MUSIC - Service Worker v19 — Futuristic Emerald Dark Mobile UI (Auto-Responsive)
+const CACHE_NAME = 'music-app-v19';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

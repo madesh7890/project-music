@@ -3340,6 +3340,15 @@ class MusicApp {
         if (isVisible) this.loadKaraokeLyrics();
       });
     }
+
+    const sheetLyricsPill = document.getElementById('sheetLyricsPillBtn');
+    if (sheetLyricsPill && this.sheetToggleLyrics) {
+      sheetLyricsPill.addEventListener('click', () => this.sheetToggleLyrics.click());
+    }
+    const sheetSleepRow = document.getElementById('sheetSleepRow');
+    if (sheetSleepRow && this.sheetSleepBtn) {
+      sheetSleepRow.addEventListener('click', () => this.sheetSleepBtn.click());
+    }
     if (this.closeSheetLyricsBtn) {
       this.closeSheetLyricsBtn.addEventListener('click', () => {
         this.isKaraokeActive = false;

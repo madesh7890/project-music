@@ -140,7 +140,10 @@
       <!-- Top App Bar -->
       <header class="top-header">
         <div class="header-left">
-          <div class="mobile-brand-title">MUSIC</div>
+          <div class="mobile-brand-title">
+            <svg class="brand-music-icon" viewBox="0 0 24 24" width="22" height="22" fill="#1ed760"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span>MUSIC</span>
+          </div>
           <!-- Omnisearch Bar -->
           <div class="search-box">
             <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -583,32 +586,56 @@
         </button>
       </div>
 
-      <!-- Quick Audio FX Bar in Fullscreen Sheet -->
-      <div class="sheet-quick-fx-bar">
-        <button class="quick-fx-btn active" id="sheetToggleVisualizer">
-          <span class="quick-fx-icon">🌊</span>
-          <span>Waveform</span>
-        </button>
-        <button class="quick-fx-btn" id="sheetToggleSlowed">
-          <span class="quick-fx-icon">✨</span>
-          <span>Slowed+Reverb</span>
-        </button>
-        <button class="quick-fx-btn active" id="sheetToggle3D">
-          <span class="quick-fx-icon">🎧</span>
-          <span>3D Spatial</span>
-        </button>
-        <button class="quick-fx-btn active" id="sheetToggleDolby">
-          <span class="quick-fx-icon">🔊</span>
-          <span>Dolby Atmos</span>
-        </button>
-        <button class="quick-fx-btn active" id="sheetToggleBass">
-          <span class="quick-fx-icon">💥</span>
-          <span>Bass Boost</span>
-        </button>
-        <button class="quick-fx-btn" id="sheetToggleLyrics">
-          <span class="quick-fx-icon">🎤</span>
-          <span>Karaoke</span>
-        </button>
+      <!-- Quick Lyrics Pill Button (Center) -->
+      <button class="sheet-lyrics-pill" id="sheetLyricsPillBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        <span>Lyrics ▴</span>
+      </button>
+
+      <!-- Quick Audio FX Rack in Fullscreen Sheet -->
+      <div class="sheet-fx-rack">
+        <div class="sheet-fx-rack-header">
+          <div class="sheet-fx-rack-title">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#1ed760"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span>Audio Effects</span>
+          </div>
+          <span class="sheet-fx-rack-badge">PRO DSP</span>
+        </div>
+        <div class="sheet-quick-fx-bar">
+          <button class="quick-fx-btn active" id="sheetToggleVisualizer">
+            <span class="quick-fx-icon">🌊</span>
+            <span>Waveform</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetToggleSlowed">
+            <span class="quick-fx-icon">✨</span>
+            <span>Slowed+Reverb</span>
+          </button>
+          <button class="quick-fx-btn active" id="sheetToggle3D">
+            <span class="quick-fx-icon">🎧</span>
+            <span>3D Spatial</span>
+          </button>
+          <button class="quick-fx-btn active" id="sheetToggleDolby">
+            <span class="quick-fx-icon">🔊</span>
+            <span>Dolby Atmos</span>
+          </button>
+          <button class="quick-fx-btn active" id="sheetToggleBass">
+            <span class="quick-fx-icon">💥</span>
+            <span>Bass Boost</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetToggleLyrics">
+            <span class="quick-fx-icon">🎤</span>
+            <span>Karaoke</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Sleep Timer Bar -->
+      <div class="sheet-sleep-row" id="sheetSleepRow">
+        <div class="sheet-sleep-left">
+          <span class="sleep-moon-icon">🌙</span>
+          <span>Sleep Timer</span>
+        </div>
+        <span class="sheet-sleep-status" id="sheetSleepStatusText">Off ▾</span>
       </div>
 
       <!-- Real-Time Synchronized Karaoke Lyrics Container -->
