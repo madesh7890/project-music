@@ -70,6 +70,7 @@ class MusicApp {
     this.initPWA();
     this.renderSidebarPlaylists();
     this.checkUrlShareParams();
+    this.updateAudioEffectsUI();
 
     // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere
     // Mobile guard: NEVER create AudioContext on mobile — native hardware engine handles audio directly
@@ -640,57 +641,73 @@ class MusicApp {
   }
 
   applyAudioEffects() {
+    // 1. ALWAYS update UI state first (both mobile & desktop)
+    this.updateAudioEffectsUI();
+
+    // 2. Hardware DSP update (desktop only when audioCtx exists)
     if (!this.isDspInit || !this.audioCtx) return;
+
+    const now = this.audioCtx.currentTime;
 
     // Bass Boost
     if (this.bassFilter) {
-      this.bassFilter.gain.setTargetAtTime(this.bassBoostGain, this.audioCtx.currentTime, 0.05);
+      this.bassFilter.gain.setTargetAtTime(this.bassBoostGain, now, 0.05);
     }
 
     // Vocal Clarity
     if (this.vocalFilter) {
-      this.vocalFilter.gain.setTargetAtTime(this.isVocalClarityActive ? 3.5 : 0, this.audioCtx.currentTime, 0.05);
+      this.vocalFilter.gain.setTargetAtTime(this.isVocalClarityActive ? 3.5 : 0, now, 0.05);
     }
 
     // Spatial 3D Audio Wet Gain
     if (this.spatialWetGain) {
       const wet = this.isSpatial3DActive ? 0.40 : 0.0;
-      this.spatialWetGain.gain.setTargetAtTime(wet, this.audioCtx.currentTime, 0.05);
+      this.spatialWetGain.gain.setTargetAtTime(wet, now, 0.05);
     }
 
     // Dolby Atmos Cinema Ambience Gain
     if (this.dolbyGain) {
       const dolbyVal = this.isDolbyAtmosActive ? 0.25 : 0.0;
-      this.dolbyGain.gain.setTargetAtTime(dolbyVal, this.audioCtx.currentTime, 0.05);
+      this.dolbyGain.gain.setTargetAtTime(dolbyVal, now, 0.05);
     }
 
     // Input Headroom adjustment for 3D & Dolby
     if (this.inputGain) {
       const targetGain = (this.isDolbyAtmosActive || this.isSpatial3DActive) ? 0.80 : 0.88;
-      this.inputGain.gain.setTargetAtTime(targetGain, this.audioCtx.currentTime, 0.05);
+      this.inputGain.gain.setTargetAtTime(targetGain, now, 0.05);
     }
+  }
 
-    // Update UI Badges
+  updateAudioEffectsUI() {
+    // Update Fullscreen Sheet Badges
     if (this.sheetSpatialBadge) {
       this.sheetSpatialBadge.style.display = this.isSpatial3DActive ? 'inline-block' : 'none';
     }
     if (this.sheetDolbyBadge) {
       this.sheetDolbyBadge.style.display = this.isDolbyAtmosActive ? 'inline-block' : 'none';
     }
+    // Update Sheet Quick FX Buttons (active = green ON, inactive = pure black OFF)
     if (this.sheetToggle3D) {
-      this.sheetToggle3D.classList.toggle('active', this.isSpatial3DActive);
+      this.sheetToggle3D.classList.toggle('active', !!this.isSpatial3DActive);
     }
     if (this.sheetToggleDolby) {
-      this.sheetToggleDolby.classList.toggle('active', this.isDolbyAtmosActive);
+      this.sheetToggleDolby.classList.toggle('active', !!this.isDolbyAtmosActive);
     }
     if (this.sheetToggleBass) {
       this.sheetToggleBass.classList.toggle('active', this.bassBoostGain > 0);
     }
+    // Update Modal Controls
     if (this.toggleSpatial3D) {
-      this.toggleSpatial3D.checked = this.isSpatial3DActive;
+      this.toggleSpatial3D.checked = !!this.isSpatial3DActive;
     }
     if (this.toggleDolbyAtmos) {
-      this.toggleDolbyAtmos.checked = this.isDolbyAtmosActive;
+      this.toggleDolbyAtmos.checked = !!this.isDolbyAtmosActive;
+    }
+    if (this.bassBoostSlider) {
+      this.bassBoostSlider.value = this.bassBoostGain;
+    }
+    if (this.bassBoostValue) {
+      this.bassBoostValue.textContent = `+${this.bassBoostGain} dB`;
     }
   }
 
@@ -1267,22 +1284,25 @@ class MusicApp {
     // Sheet Quick FX Toggles
     this.sheetToggle3D.addEventListener('click', () => {
       this.isSpatial3DActive = !this.isSpatial3DActive;
-      this.toggleSpatial3D.checked = this.isSpatial3DActive;
+      if (this.sheetToggle3D) this.sheetToggle3D.classList.toggle('active', this.isSpatial3DActive);
+      if (this.toggleSpatial3D) this.toggleSpatial3D.checked = this.isSpatial3DActive;
       this.applyAudioEffects();
       this.showToast(this.isSpatial3DActive ? '🎧 3D Spatial Audio ON' : '3D Spatial Audio OFF');
     });
 
     this.sheetToggleDolby.addEventListener('click', () => {
       this.isDolbyAtmosActive = !this.isDolbyAtmosActive;
-      this.toggleDolbyAtmos.checked = this.isDolbyAtmosActive;
+      if (this.sheetToggleDolby) this.sheetToggleDolby.classList.toggle('active', this.isDolbyAtmosActive);
+      if (this.toggleDolbyAtmos) this.toggleDolbyAtmos.checked = this.isDolbyAtmosActive;
       this.applyAudioEffects();
       this.showToast(this.isDolbyAtmosActive ? '🔊 Dolby Atmos ON' : 'Dolby Atmos OFF');
     });
 
     this.sheetToggleBass.addEventListener('click', () => {
       this.bassBoostGain = (this.bassBoostGain === 0) ? 10 : 0;
-      this.bassBoostSlider.value = this.bassBoostGain;
-      this.bassBoostValue.textContent = `+${this.bassBoostGain} dB`;
+      if (this.sheetToggleBass) this.sheetToggleBass.classList.toggle('active', this.bassBoostGain > 0);
+      if (this.bassBoostSlider) this.bassBoostSlider.value = this.bassBoostGain;
+      if (this.bassBoostValue) this.bassBoostValue.textContent = `+${this.bassBoostGain} dB`;
       this.applyAudioEffects();
       this.showToast(this.bassBoostGain > 0 ? '💥 Bass Boost +10dB ON' : 'Bass Boost OFF');
     });
