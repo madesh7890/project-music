@@ -1283,10 +1283,8 @@
     </div>
   </div>
 
-  <!-- Audio Element -->
-  <!-- crossorigin removed: mobile browsers force software-decode path causing crackling when CORS mode is active -->
-  <!-- preload=metadata on mobile: reduces initial buffer stress & prevents network saturation on 4G/5G -->
-  <audio id="audioElement" preload="metadata" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+  <!-- Audio Element with CORS enabled for Web Audio DSP effects -->
+  <audio id="audioElement" preload="metadata" crossorigin="anonymous" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
 
   <!-- Notification Toast -->
   <div class="toast" id="toast"></div>

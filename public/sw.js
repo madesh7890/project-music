@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v17 — Search filter pills + swipe shelf
-const CACHE_NAME = 'music-app-v17';
+// MUSIC - Service Worker v18 — Real-time Web Audio DSP on mobile (Bass Boost, Dolby Atmos, 3D Spatial)
+const CACHE_NAME = 'music-app-v18';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
