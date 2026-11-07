@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v19 — Futuristic Emerald Dark Mobile UI (Auto-Responsive)
-const CACHE_NAME = 'music-app-v19';
+// MUSIC - Service Worker v20 — Fix mobile audio silence with anonymous CORS, center toast, sync quick-fx buttons & zero bleed
+const CACHE_NAME = 'music-app-v20';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

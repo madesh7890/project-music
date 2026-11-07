@@ -8,11 +8,9 @@
 class MusicApp {
   constructor() {
     this.audio = document.getElementById('audioElement');
-    // Mobile optimization: Remove crossorigin attribute on mobile so native audio hardware engine is used with 0 CORS overhead
-    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-      (navigator.maxTouchPoints > 1 && /Macintosh/i.test(navigator.userAgent));
-    if (isMobile && this.audio) {
-      this.audio.removeAttribute('crossorigin');
+    // Ensure CORS mode is ALWAYS active for Web Audio DSP processing (prevents silent output)
+    if (this.audio) {
+      this.audio.crossOrigin = 'anonymous';
     }
     this.currentSong = null;
     this.queue = [];
@@ -450,15 +448,15 @@ class MusicApp {
       this.delayLeft.delayTime.value = 0.0018; // 1.8ms binaural ITD delay
       this.delayRight.delayTime.value = 0.0009;
 
-      // Dolby Atmos Cinema Room Ambience (Ultra-efficient acoustic reflection network)
+      // Dolby Atmos Cinema Room Ambience (Clean dual-reflection stereo acoustic space)
       // Zero CPU strain on mobile, zero crackling, pure spacious theater sound
-      this.dolbyDelay = this.audioCtx.createDelay();
-      this.dolbyDelay.delayTime.value = 0.032; // 32ms cinema hall early reflection
+      this.dolbyDelayLeft = this.audioCtx.createDelay();
+      this.dolbyDelayRight = this.audioCtx.createDelay();
+      this.dolbyDelayLeft.delayTime.value = 0.028; // 28ms left cinema reflection
+      this.dolbyDelayRight.delayTime.value = 0.038; // 38ms right cinema reflection
       this.dolbyDampFilter = this.audioCtx.createBiquadFilter();
       this.dolbyDampFilter.type = 'lowpass';
       this.dolbyDampFilter.frequency.value = 5200; // Acoustic cinema room roll-off
-      this.dolbyFeedback = this.audioCtx.createGain();
-      this.dolbyFeedback.gain.value = 0.22;
       this.dolbyGain = this.audioCtx.createGain();
       this.dolbyGain.gain.value = this.isDolbyAtmosActive ? 0.38 : 0.0;
 
@@ -522,10 +520,10 @@ class MusicApp {
       this.spatialWetGain.connect(this.compressor);
 
       // 3. Dolby Atmos Cinema Ambience path
-      lastNode.connect(this.dolbyDelay);
-      this.dolbyDelay.connect(this.dolbyDampFilter);
-      this.dolbyDampFilter.connect(this.dolbyFeedback);
-      this.dolbyFeedback.connect(this.dolbyDelay);
+      lastNode.connect(this.dolbyDelayLeft);
+      lastNode.connect(this.dolbyDelayRight);
+      this.dolbyDelayLeft.connect(this.dolbyDampFilter);
+      this.dolbyDelayRight.connect(this.dolbyDampFilter);
       this.dolbyDampFilter.connect(this.dolbyGain);
       this.dolbyGain.connect(this.compressor);
 
@@ -668,6 +666,19 @@ class MusicApp {
     }
     if (this.sheetToggleBass) {
       this.sheetToggleBass.classList.toggle('active', this.bassBoostGain > 0);
+    }
+    if (this.sheetToggleVisualizer) {
+      this.sheetToggleVisualizer.classList.toggle('active', !!this.isVisualizerActive);
+    }
+    if (this.sheetToggleSlowed) {
+      this.sheetToggleSlowed.classList.toggle('active', !!this.isSlowedModeActive);
+    }
+    if (this.sheetToggleLyrics) {
+      this.sheetToggleLyrics.classList.toggle('active', !!this.isKaraokeActive);
+    }
+    const mw = document.getElementById('mobileWaveform');
+    if (mw) {
+      mw.style.display = this.isVisualizerActive ? 'flex' : 'none';
     }
     // Update Modal Controls
     if (this.toggleSpatial3D) {
@@ -870,6 +881,7 @@ class MusicApp {
           }
           if (this.audio.src !== fallbackUrl) {
             console.log('Switching to fallback stream:', this._isMobileDevice ? 'direct CDN' : 'proxy', fallbackUrl);
+            this.audio.crossOrigin = 'anonymous';
             this.audio.src = fallbackUrl;
             this.audio.load();
             this.audio.play().catch(() => {});
@@ -1300,7 +1312,7 @@ class MusicApp {
     this.sheetToggleBass.addEventListener('click', () => {
       if (!this.isDspInit) this.setupAudioDSP();
       if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
-      this.bassBoostGain = (this.bassBoostGain === 0) ? 10 : 0;
+      this.bassBoostGain = (this.bassBoostGain > 0) ? 0 : 10;
       if (this.sheetToggleBass) this.sheetToggleBass.classList.toggle('active', this.bassBoostGain > 0);
       if (this.bassBoostSlider) this.bassBoostSlider.value = this.bassBoostGain;
       if (this.bassBoostValue) this.bassBoostValue.textContent = `+${this.bassBoostGain} dB`;
@@ -1334,6 +1346,7 @@ class MusicApp {
         if (this.currentSong && this.isPlaying) {
           const currentTime = this.audio.currentTime;
           const newUrl = this.getStreamUrlForFormat(this.currentSong, this.currentFormat);
+          this.audio.crossOrigin = 'anonymous';
           this.audio.src = newUrl;
           this.audio.currentTime = currentTime;
           this.audio.play();
@@ -1802,6 +1815,7 @@ class MusicApp {
     }
     this.applyQualityFidelityProfile(this.currentFormat);
 
+    this.audio.crossOrigin = 'anonymous';
     this.audio.src = audioUrl;
     this.audio.load();
 
@@ -3225,15 +3239,10 @@ class MusicApp {
     if (this.sheetToggleVisualizer) {
       this.sheetToggleVisualizer.addEventListener('click', () => {
         this.isVisualizerActive = !this.isVisualizerActive;
-        this.sheetToggleVisualizer.classList.toggle('active', this.isVisualizerActive);
+        this.updateAudioEffectsUI();
 
         if (this._isMobileDevice) {
-          // Mobile: CSS animated waveform (no Web Audio API needed)
-          const mobileWave = document.getElementById('mobileWaveform');
-          if (mobileWave) {
-            mobileWave.style.display = this.isVisualizerActive ? 'flex' : 'none';
-          }
-          this.showToast(this.isVisualizerActive ? '🌊 Waveform ON' : '🌊 Waveform OFF');
+          this.showToast(this.isVisualizerActive ? '🌊 Waveform ON' : 'Waveform OFF');
         } else {
           // Desktop: Real Web Audio analyser visualizer
           if (this.isVisualizerActive) {
@@ -3242,7 +3251,7 @@ class MusicApp {
             this.showToast('🌊 Neon Visualizer ON');
           } else {
             this.stopVisualizer();
-            this.showToast('Visualizer OFF');
+            this.showToast('Waveform OFF');
           }
         }
       });
