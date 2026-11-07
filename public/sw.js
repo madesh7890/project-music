@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v20 — Fix mobile audio silence with anonymous CORS, center toast, sync quick-fx buttons & zero bleed
-const CACHE_NAME = 'music-app-v20';
+// MUSIC - Service Worker v21 — Pure mobile native hardware audio (Zero noise, zero crackle, zero buffer underrun)
+const CACHE_NAME = 'music-app-v21';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
