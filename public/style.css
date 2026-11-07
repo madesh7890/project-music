@@ -1888,7 +1888,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 200;
+  z-index: 3500 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1900,6 +1900,7 @@ body {
 .audio-fx-modal.active {
   opacity: 1;
   pointer-events: auto;
+  z-index: 3500 !important;
 }
 
 .modal-backdrop {
@@ -6173,7 +6174,13 @@ body {
     font-size: 0.82rem !important;
   }
 
-  /* ── Modals / Dialogs on Mobile (Slide-up Glass Bottom Sheets) ───────────── */
+  /* ── Modals / Dialogs on Mobile (Slide-up Glass Bottom Sheets above Now Playing Sheet) ───────────── */
+  .audio-fx-modal {
+    z-index: 3500 !important;
+  }
+  .audio-fx-modal.active {
+    z-index: 3500 !important;
+  }
   .modal-backdrop .modal-dialog,
   .audio-fx-dialog,
   .quality-dialog,
@@ -6196,6 +6203,7 @@ body {
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px) !important;
+    z-index: 3501 !important;
   }
 
   /* ── Queue Drawer (Slide Up Bottom Sheet) ────────────────────────────────── */

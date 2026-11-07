@@ -15,12 +15,8 @@ class MusicApp {
     // Mobile optimization: Use direct native hardware decoding (prevents Web Audio buffer underrun crackle)
     // Desktop: Use anonymous CORS for full 320k Web Audio DSP Suite
     if (this.audio) {
-      if (this._isMobileDevice) {
-        this.audio.removeAttribute('crossorigin');
-        this.audio.preload = 'auto';
-      } else {
-        this.audio.crossOrigin = 'anonymous';
-      }
+      this.audio.crossOrigin = 'anonymous';
+      this.audio.preload = 'auto';
     }
     this.currentSong = null;
     this.queue = [];
@@ -80,9 +76,8 @@ class MusicApp {
     this.checkUrlShareParams();
     this.updateAudioEffectsUI();
 
-    // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere (desktop only)
+    // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere
     const unlockAudio = () => {
-      if (this._isMobileDevice) return; // Mobile native hardware engine needs no AudioContext
       if (!this.isDspInit) {
         this.setupAudioDSP();
       }
@@ -381,41 +376,37 @@ class MusicApp {
   setupAudioDSP() {
     if (this.isDspInit) return;
     try {
-      if (this._isMobileDevice) {
-        // ── MOBILE NATIVE DIRECT HARDWARE AUDIO ENGINE ──────────────────────
-        // Completely eliminates "erachal sound" (buffer underrun noise) and stuttering ("stuck aaguthu").
-        // Android MediaPlayer/AAudio and iOS AVPlayer decode the direct 320k/160k AAC stream
-        // natively in phone hardware with zero latency, zero noise, and crystal-clear studio fidelity!
-        this.isDspInit = true;
-        this.audioCtx = null;
-        this.sourceNode = null;
-        console.log('📱 Mobile: Native Direct Hardware Audio active (Zero crackling, zero noise)');
-        return;
-      }
-
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
 
       if (!this.audioCtx) {
-        this.audioCtx = new AudioContext();
+        // latencyHint: 'playback' ensures large, safe audio buffer (stops underrun noise on mobile & desktop)
+        this.audioCtx = new AudioContext({ latencyHint: 'playback' });
       }
 
-      // Master Input Headroom Gain (prevents digital clipping when EQ is boosted)
+      // Master Input Headroom Gain (prevents digital clipping when bass/EQ is boosted)
       this.inputGain = this.audioCtx.createGain();
-      this.inputGain.gain.value = 0.85;
+      this.inputGain.gain.value = 0.70;
 
-      // Super Bass Boost Filter (Low-shelf at 80Hz - deep, punchy sub & mid-bass)
+      // Super Bass Boost Filter (Low-shelf at 85Hz - punchy, chest-thumping sub-bass)
       this.bassFilter = this.audioCtx.createBiquadFilter();
       this.bassFilter.type = 'lowshelf';
-      this.bassFilter.frequency.value = 80;
+      this.bassFilter.frequency.value = 85;
       this.bassFilter.gain.value = this.bassBoostGain || 0;
 
-      // Vocal Clarity Filter (Peaking at 2.8kHz - crystal clear vocals)
+      // Vocal Clarity Filter (Peaking at 3100Hz - razor-sharp front vocals)
       this.vocalFilter = this.audioCtx.createBiquadFilter();
       this.vocalFilter.type = 'peaking';
-      this.vocalFilter.frequency.value = 2800;
-      this.vocalFilter.Q.value = 1.0;
-      this.vocalFilter.gain.value = this.isVocalClarityActive ? 4.5 : 0;
+      this.vocalFilter.frequency.value = 3100;
+      this.vocalFilter.Q.value = 1.2;
+      this.vocalFilter.gain.value = this.isVocalClarityActive ? 6.0 : 0;
+
+      // Vocal De-Mud Filter (Dips 260Hz boxiness when Vocal Clarity active)
+      this.vocalDeMudFilter = this.audioCtx.createBiquadFilter();
+      this.vocalDeMudFilter.type = 'peaking';
+      this.vocalDeMudFilter.frequency.value = 260;
+      this.vocalDeMudFilter.Q.value = 1.0;
+      this.vocalDeMudFilter.gain.value = this.isVocalClarityActive ? -3.0 : 0;
 
       // 5-Band Equalizer Filters
       this.eqFilters = [
@@ -432,61 +423,33 @@ class MusicApp {
         return filter;
       });
 
-      // Real-Time Acoustic Quality Fidelity Engine
-      this.fidelityCutoffFilter = this.audioCtx.createBiquadFilter();
-      this.fidelityCutoffFilter.type = 'lowpass';
-      this.fidelityCutoffFilter.frequency.value = 22050;
-      this.fidelityCutoffFilter.Q.value = 0.707;
-
-      this.fidelityAirFilter = this.audioCtx.createBiquadFilter();
-      this.fidelityAirFilter.type = 'highshelf';
-      this.fidelityAirFilter.frequency.value = 12500;
-      this.fidelityAirFilter.gain.value = 0.8;
-
-      this.fidelityWarmthFilter = this.audioCtx.createBiquadFilter();
-      this.fidelityWarmthFilter.type = 'peaking';
-      this.fidelityWarmthFilter.frequency.value = 95;
-      this.fidelityWarmthFilter.Q.value = 1.2;
-      this.fidelityWarmthFilter.gain.value = 0.8;
-
-      this.fidelityPresenceFilter = this.audioCtx.createBiquadFilter();
-      this.fidelityPresenceFilter.type = 'peaking';
-      this.fidelityPresenceFilter.frequency.value = 3200;
-      this.fidelityPresenceFilter.Q.value = 1.0;
-      this.fidelityPresenceFilter.gain.value = 0.8;
-
       // Spatial Audio 3D Stereo Widener (Binaural ITD delay - wraps sound around your head)
       this.spatialDryGain = this.audioCtx.createGain();
       this.spatialWetGain = this.audioCtx.createGain();
-      this.spatialDryGain.gain.value = 0.88;
-      this.spatialWetGain.gain.value = this.isSpatial3DActive ? 0.48 : 0.0;
+      this.spatialDryGain.gain.value = 0.85;
+      this.spatialWetGain.gain.value = this.isSpatial3DActive ? 0.60 : 0.0;
 
       this.splitter = this.audioCtx.createChannelSplitter(2);
       this.merger = this.audioCtx.createChannelMerger(2);
       this.delayLeft = this.audioCtx.createDelay();
       this.delayRight = this.audioCtx.createDelay();
-      this.delayLeft.delayTime.value = 0.0018; // 1.8ms binaural ITD delay
-      this.delayRight.delayTime.value = 0.0009;
+      this.delayLeft.delayTime.value = 0.0016; // 1.6ms ITD delay
+      this.delayRight.delayTime.value = 0.0008;
 
-      // Dolby Atmos Cinema Room Ambience (Clean dual-reflection stereo acoustic space)
-      // Zero CPU strain on mobile, zero crackling, pure spacious theater sound
+      // Dolby Atmos Cinema Room Ambience (Clean stereo dual-reflection acoustic hall)
       this.dolbyDelayLeft = this.audioCtx.createDelay();
       this.dolbyDelayRight = this.audioCtx.createDelay();
-      this.dolbyDelayLeft.delayTime.value = 0.028; // 28ms left cinema reflection
-      this.dolbyDelayRight.delayTime.value = 0.038; // 38ms right cinema reflection
-      this.dolbyDampFilter = this.audioCtx.createBiquadFilter();
-      this.dolbyDampFilter.type = 'lowpass';
-      this.dolbyDampFilter.frequency.value = 5200; // Acoustic cinema room roll-off
+      this.dolbyDelayLeft.delayTime.value = 0.030; // 30ms left cinema reflection
+      this.dolbyDelayRight.delayTime.value = 0.046; // 46ms right cinema reflection
+      this.dolbyDampLeft = this.audioCtx.createBiquadFilter();
+      this.dolbyDampRight = this.audioCtx.createBiquadFilter();
+      this.dolbyDampLeft.type = 'lowpass';
+      this.dolbyDampRight.type = 'lowpass';
+      this.dolbyDampLeft.frequency.value = 4500; // Cinema hall warmth
+      this.dolbyDampRight.frequency.value = 4500;
+      this.dolbyMerger = this.audioCtx.createChannelMerger(2);
       this.dolbyGain = this.audioCtx.createGain();
-      this.dolbyGain.gain.value = this.isDolbyAtmosActive ? 0.38 : 0.0;
-
-      // High-End Anti-Clipping Limiter / Compressor (GUARANTEES ZERO DISTORTION / NOISE)
-      this.compressor = this.audioCtx.createDynamicsCompressor();
-      this.compressor.threshold.setValueAtTime(-4, this.audioCtx.currentTime);
-      this.compressor.knee.setValueAtTime(10, this.audioCtx.currentTime);
-      this.compressor.ratio.setValueAtTime(6, this.audioCtx.currentTime);
-      this.compressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
-      this.compressor.release.setValueAtTime(0.25, this.audioCtx.currentTime);
+      this.dolbyGain.gain.value = this.isDolbyAtmosActive ? 0.45 : 0.0;
 
       // Master Output Gain
       this.masterGain = this.audioCtx.createGain();
@@ -497,23 +460,11 @@ class MusicApp {
         this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
       }
 
-      // Connect DSP Chain:
-      // Source -> InputGain -> Fidelity Filters -> BassFilter -> VocalFilter -> EQ Filters
+      // Connect Clean DSP Chain:
+      // Source -> InputGain -> BassFilter -> VocalFilter -> VocalDeMud -> EQ Filters
       let lastNode = this.sourceNode;
       lastNode.connect(this.inputGain);
       lastNode = this.inputGain;
-
-      lastNode.connect(this.fidelityWarmthFilter);
-      lastNode = this.fidelityWarmthFilter;
-
-      lastNode.connect(this.fidelityPresenceFilter);
-      lastNode = this.fidelityPresenceFilter;
-
-      lastNode.connect(this.fidelityAirFilter);
-      lastNode = this.fidelityAirFilter;
-
-      lastNode.connect(this.fidelityCutoffFilter);
-      lastNode = this.fidelityCutoffFilter;
 
       lastNode.connect(this.bassFilter);
       lastNode = this.bassFilter;
@@ -521,40 +472,43 @@ class MusicApp {
       lastNode.connect(this.vocalFilter);
       lastNode = this.vocalFilter;
 
+      lastNode.connect(this.vocalDeMudFilter);
+      lastNode = this.vocalDeMudFilter;
+
       for (const eqNode of this.eqFilters) {
         lastNode.connect(eqNode);
         lastNode = eqNode;
       }
 
-      // 1. Direct dry path to compressor
+      // Path 1. Direct dry path to master
       lastNode.connect(this.spatialDryGain);
-      this.spatialDryGain.connect(this.compressor);
+      this.spatialDryGain.connect(this.masterGain);
 
-      // 2. 3D Spatial Audio binaural ITD widener
+      // Path 2. 3D Spatial Audio binaural ITD widener to master
       lastNode.connect(this.splitter);
       this.splitter.connect(this.delayLeft, 0);
       this.splitter.connect(this.delayRight, 1);
       this.delayLeft.connect(this.merger, 0, 0);
       this.delayRight.connect(this.merger, 0, 1);
       this.merger.connect(this.spatialWetGain);
-      this.spatialWetGain.connect(this.compressor);
+      this.spatialWetGain.connect(this.masterGain);
 
-      // 3. Dolby Atmos Cinema Ambience path
+      // Path 3. Dolby Atmos Cinema Ambience path (separate L/R reflections into merger)
       lastNode.connect(this.dolbyDelayLeft);
       lastNode.connect(this.dolbyDelayRight);
-      this.dolbyDelayLeft.connect(this.dolbyDampFilter);
-      this.dolbyDelayRight.connect(this.dolbyDampFilter);
-      this.dolbyDampFilter.connect(this.dolbyGain);
-      this.dolbyGain.connect(this.compressor);
+      this.dolbyDelayLeft.connect(this.dolbyDampLeft);
+      this.dolbyDelayRight.connect(this.dolbyDampRight);
+      this.dolbyDampLeft.connect(this.dolbyMerger, 0, 0);
+      this.dolbyDampRight.connect(this.dolbyMerger, 0, 1);
+      this.dolbyMerger.connect(this.dolbyGain);
+      this.dolbyGain.connect(this.masterGain);
 
-      // Connect limiter compressor to hardware output
-      this.compressor.connect(this.masterGain);
+      // Connect master output to hardware speakers/headphones
       this.masterGain.connect(this.audioCtx.destination);
 
       this.isDspInit = true;
       this.applyAudioEffects();
-      this.applyQualityFidelityProfile(this.currentFormat);
-      console.log('🔊 Web Audio High-Fidelity DSP active on all devices (mobile + desktop)');
+      console.log('🔊 Web Audio High-Fidelity DSP active (Zero crackling, accurate sound transformation)');
     } catch (e) {
       console.warn('AudioContext initialization error:', e.message);
     }
@@ -640,32 +594,36 @@ class MusicApp {
 
     const now = this.audioCtx.currentTime;
 
-    // Super Bass Boost (punchy low-shelf 80Hz)
+    // Super Bass Boost (+10dB punchy low-shelf 85Hz)
     if (this.bassFilter) {
-      this.bassFilter.gain.setTargetAtTime(this.bassBoostGain || 0, now, 0.03);
+      const bassTarget = this.bassBoostGain > 0 ? this.bassBoostGain : 0;
+      this.bassFilter.gain.setTargetAtTime(bassTarget, now, 0.02);
     }
 
-    // Vocal Clarity (crisp peaking 2.8kHz)
+    // Vocal Clarity (+6dB peaking 3.1kHz & -3dB 260Hz de-mud)
     if (this.vocalFilter) {
-      this.vocalFilter.gain.setTargetAtTime(this.isVocalClarityActive ? 4.5 : 0, now, 0.03);
+      this.vocalFilter.gain.setTargetAtTime(this.isVocalClarityActive ? 6.0 : 0.0, now, 0.02);
+    }
+    if (this.vocalDeMudFilter) {
+      this.vocalDeMudFilter.gain.setTargetAtTime(this.isVocalClarityActive ? -3.0 : 0.0, now, 0.02);
     }
 
-    // Spatial 3D Audio Wet Gain
+    // Spatial 3D Audio Wet Gain (0.60 wide 360° ITD vs 0.0 normal)
     if (this.spatialWetGain) {
-      const wet = this.isSpatial3DActive ? 0.48 : 0.0;
-      this.spatialWetGain.gain.setTargetAtTime(wet, now, 0.03);
+      const wet = this.isSpatial3DActive ? 0.60 : 0.0;
+      this.spatialWetGain.gain.setTargetAtTime(wet, now, 0.02);
     }
 
-    // Dolby Atmos Cinema Ambience Gain
+    // Dolby Atmos Cinema Ambience Gain (0.45 theater hall vs 0.0 dry)
     if (this.dolbyGain) {
-      const dolbyVal = this.isDolbyAtmosActive ? 0.38 : 0.0;
-      this.dolbyGain.gain.setTargetAtTime(dolbyVal, now, 0.03);
+      const dolbyVal = this.isDolbyAtmosActive ? 0.45 : 0.0;
+      this.dolbyGain.gain.setTargetAtTime(dolbyVal, now, 0.02);
     }
 
-    // Input Headroom adjustment for 3D & Dolby
+    // Dynamic Headroom adjustment
     if (this.inputGain) {
-      const targetGain = (this.isDolbyAtmosActive || this.isSpatial3DActive) ? 0.78 : 0.85;
-      this.inputGain.gain.setTargetAtTime(targetGain, now, 0.03);
+      const targetGain = (this.isDolbyAtmosActive || this.isSpatial3DActive) ? 0.65 : 0.75;
+      this.inputGain.gain.setTargetAtTime(targetGain, now, 0.02);
     }
   }
 
@@ -799,39 +757,34 @@ class MusicApp {
     this.audio.addEventListener('play', () => {
       this.isPlaying = true;
       this.updatePlayStateUI();
-      if (!this._isMobileDevice) {
-        if (!this.isDspInit) {
-          this.setupAudioDSP();
-        }
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-          this.audioCtx.resume();
-        }
+      if (!this.isDspInit) {
+        this.setupAudioDSP();
+      }
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
       }
     });
 
     this.audio.addEventListener('playing', () => {
       this.isPlaying = true;
       this.updatePlayStateUI();
-      if (!this._isMobileDevice) {
-        if (!this.isDspInit) {
-          this.setupAudioDSP();
-        }
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-          this.audioCtx.resume();
-        }
-        // Start visualizer if active (desktop only)
-        if (this.isVisualizerActive) {
-          if (!this.analyser) this.setupVisualizer();
-          this.startVisualizer();
-        }
-      } else {
-        // Mobile waveform: resume animation when playing
-        if (this.isVisualizerActive) {
-          const mw = document.getElementById('mobileWaveform');
-          if (mw) {
-            mw.style.display = 'flex';
-            mw.classList.remove('paused');
-          }
+      if (!this.isDspInit) {
+        this.setupAudioDSP();
+      }
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+      // Start visualizer if active (desktop only)
+      if (this.isVisualizerActive && !this._isMobileDevice) {
+        if (!this.analyser) this.setupVisualizer();
+        this.startVisualizer();
+      }
+      // Mobile waveform: resume animation when playing
+      if (this._isMobileDevice && this.isVisualizerActive) {
+        const mw = document.getElementById('mobileWaveform');
+        if (mw) {
+          mw.style.display = 'flex';
+          mw.classList.remove('paused');
         }
       }
     });
@@ -906,11 +859,8 @@ class MusicApp {
           }
           if (this.audio.src !== fallbackUrl) {
             console.log('Switching to fallback stream:', this._isMobileDevice ? 'direct CDN' : 'proxy', fallbackUrl);
-            if (!this._isMobileDevice) {
-              this.audio.crossOrigin = 'anonymous';
-            } else {
-              this.audio.removeAttribute('crossorigin');
-            }
+            this.audio.crossOrigin = 'anonymous';
+            this.audio.preload = 'auto';
             this.audio.src = fallbackUrl;
             this.audio.load();
             this.audio.play().catch(() => {});
@@ -1339,19 +1289,12 @@ class MusicApp {
     });
 
     this.sheetToggleBass.addEventListener('click', () => {
-      if (!this._isMobileDevice) {
-        if (!this.isDspInit) this.setupAudioDSP();
-        if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
-      }
+      if (!this.isDspInit) this.setupAudioDSP();
+      if (this.audioCtx && this.audioCtx.state === 'suspended') this.audioCtx.resume();
       this.bassBoostGain = (this.bassBoostGain > 0) ? 0 : 10;
       if (this.sheetToggleBass) this.sheetToggleBass.classList.toggle('active', this.bassBoostGain > 0);
       if (this.bassBoostSlider) this.bassBoostSlider.value = this.bassBoostGain;
       if (this.bassBoostValue) this.bassBoostValue.textContent = `+${this.bassBoostGain} dB`;
-
-      // On mobile native audio: optimize element volume for punchy bass response
-      if (this._isMobileDevice && this.audio) {
-        this.audio.volume = this.bassBoostGain > 0 ? 1.0 : 0.88;
-      }
 
       this.applyAudioEffects();
       this.showToast(this.bassBoostGain > 0 ? '💥 Bass Boost +10dB ON' : 'Bass Boost OFF');
@@ -1383,11 +1326,8 @@ class MusicApp {
         if (this.currentSong && this.isPlaying) {
           const currentTime = this.audio.currentTime;
           const newUrl = this.getStreamUrlForFormat(this.currentSong, this.currentFormat);
-          if (!this._isMobileDevice) {
-            this.audio.crossOrigin = 'anonymous';
-          } else {
-            this.audio.removeAttribute('crossorigin');
-          }
+          this.audio.crossOrigin = 'anonymous';
+          this.audio.preload = 'auto';
           this.audio.src = newUrl;
           this.audio.currentTime = currentTime;
           this.audio.play();
@@ -1824,19 +1764,12 @@ class MusicApp {
 
     this.currentSong = song;
 
-    // Mobile: auto-downgrade to 480p (160kbps AAC) for rock-solid stability on 4G/WiFi
-    // Preload 'auto' ensures continuous forward buffering, eliminating any stuttering or stuck audio
     let playFormat = this.currentFormat;
     if (this._isMobileDevice) {
       const highFormats = ['4k', '720p', '1080p', 'mp3_320', 'mp4_320'];
       const userSetFormat = localStorage.getItem('music_format_user_set');
       if (highFormats.includes(playFormat) && !userSetFormat) {
         playFormat = '480p'; // 160kbps is smooth and stable on mobile networks
-      }
-      this.audio.removeAttribute('crossorigin');
-      this.audio.preload = 'auto';
-      if (!this.isDspInit) {
-        this.setupAudioDSP();
       }
     }
 
@@ -1850,20 +1783,16 @@ class MusicApp {
       this.updateVolumeIcon(0.90);
     }
 
-    // Audio context initialization (desktop only)
-    if (!this._isMobileDevice) {
-      if (!this.isDspInit) {
-        this.setupAudioDSP();
-      }
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
-      }
-      this.applyQualityFidelityProfile(this.currentFormat);
-      this.audio.crossOrigin = 'anonymous';
-    } else {
-      this.audio.removeAttribute('crossorigin');
+    // Audio context initialization on user gesture (all devices)
+    if (!this.isDspInit) {
+      this.setupAudioDSP();
+    }
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
     }
 
+    this.audio.crossOrigin = 'anonymous';
+    this.audio.preload = 'auto';
     this.audio.src = audioUrl;
     this.audio.load();
 
@@ -1872,14 +1801,14 @@ class MusicApp {
       playPromise.then(() => {
         this.isPlaying = true;
         this.updatePlayStateUI();
-        if (!this._isMobileDevice && this.audioCtx && this.audioCtx.state === 'suspended') {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
           this.audioCtx.resume();
         }
       }).catch(err => {
         console.warn('Playback gesture/network catch:', err.message);
         // Retry play on next tick
         setTimeout(() => {
-          if (!this._isMobileDevice && this.audioCtx && this.audioCtx.state === 'suspended') {
+          if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
           }
           this.audio.play().catch(() => {});

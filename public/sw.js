@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v21 — Pure mobile native hardware audio (Zero noise, zero crackle, zero buffer underrun)
-const CACHE_NAME = 'music-app-v21';
+// MUSIC - Service Worker v22 — High-Impact Audible Audio DSP + Direct On-Sheet Download Dialog z-index 3500
+const CACHE_NAME = 'music-app-v22';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
