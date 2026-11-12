@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v22 — High-Impact Audible Audio DSP + Direct On-Sheet Download Dialog z-index 3500
-const CACHE_NAME = 'music-app-v22';
+// MUSIC - Service Worker v23 — Intelligent Search (Movie, Era, Composer, Year) + Live Trending Engine
+const CACHE_NAME = 'music-app-v23';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

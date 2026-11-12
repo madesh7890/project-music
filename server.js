@@ -341,6 +341,48 @@ async function fetchSongsFromAlbum(albId, albInfo = null) {
   return [];
 }
 
+// Helper: fetch all songs from a specific Saavn playlist
+async function fetchSongsFromPlaylist(listId) {
+  if (!listId) return [];
+  try {
+    const data = await requestSaavn(`__call=playlist.getDetails&_format=json&cc=in&listid=${listId}`);
+    if (data && data.songs && Array.isArray(data.songs)) {
+      return data.songs.map(formatSongItem).filter(s => s && s.playUrl);
+    }
+  } catch (e) {
+    console.warn('Error fetching playlist details:', e.message);
+  }
+  return [];
+}
+
+// Helper: fetch top songs from an artist's catalog
+async function fetchSongsFromArtist(artistId, count = 25) {
+  if (!artistId) return [];
+  try {
+    const data = await requestSaavn(`__call=artist.getArtistPageDetails&_format=json&cc=in&artistId=${artistId}&n_song=${count}`);
+    const songs = data?.topSongs?.songs || (Array.isArray(data?.topSongs) ? data.topSongs : []);
+    return songs.map(formatSongItem).filter(s => s && s.playUrl);
+  } catch (e) {
+    console.warn('Error fetching artist details:', e.message);
+  }
+  return [];
+}
+
+// In-memory cache for ultra-fast query serving
+const cache = new Map();
+function getCache(key) {
+  const item = cache.get(key);
+  if (!item) return null;
+  if (Date.now() > item.expiry) {
+    cache.delete(key);
+    return null;
+  }
+  return item.data;
+}
+function setCache(key, data, ttlMs = 15 * 60 * 1000) {
+  cache.set(key, { data, expiry: Date.now() + ttlMs });
+}
+
 // Stopword cleaner (removes generic music descriptors)
 function cleanSearchStopwords(q) {
   if (!q) return '';
@@ -350,7 +392,7 @@ function cleanSearchStopwords(q) {
     .trim();
 }
 
-// Language tag stripper (removes language keywords that user typed but aren't in album titles)
+// Language tag stripper
 function stripSearchLanguage(q) {
   if (!q) return '';
   return q
@@ -359,9 +401,157 @@ function stripSearchLanguage(q) {
     .trim();
 }
 
+function detectLanguage(q, fallback = 'tamil') {
+  if (!q) return fallback;
+  const m = q.match(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i);
+  return m ? m[1].toLowerCase() : (fallback ? fallback.toLowerCase() : 'tamil');
+}
+
+function detectYear(q) {
+  if (!q) return null;
+  const m = q.match(/\b(19\d{2}|20\d{2})\b/);
+  return m ? m[1] : null;
+}
+
+function detectDecade(q) {
+  if (!q) return null;
+  if (/\b(80s|1980s|80['’]s|eighties)\b/i.test(q)) return '80s';
+  if (/\b(90s|1990s|90['’]s|nineties)\b/i.test(q)) return '90s';
+  if (/\b(2000s|00s|2000['’]s|2k)\b/i.test(q)) return '2000s';
+  if (/\b(70s|1970s|70['’]s|seventies)\b/i.test(q)) return '70s';
+  if (/\b(60s|1960s|60['’]s|sixties)\b/i.test(q)) return '60s';
+  return null;
+}
+
+// Curated artists, legendary music composers & singers directory
+const KNOWN_ARTISTS = [
+  {
+    name: 'deva',
+    match: /\b(?:deva|thenisai\s*thendral)\b/i,
+    artistId: '455219',
+    playlists: ['1267537810', '1267515862'], // Deva Party Songs, Deva Love Songs
+    queries: ['Deva Hits Tamil', 'Deva Gana Songs', 'Best of Deva']
+  },
+  {
+    name: 'ilaiyaraaja',
+    match: /\b(?:ilaiyaraaja|ilayaraja|ilayarajah|ilaiyaraja|isaignani|raaja)\b/i,
+    artistId: '456269',
+    playlists: ['827647904', '743037878'], // Ilaiyaraaja 80s Hits, 80s Romance
+    queries: ['Ilaiyaraaja Evergreen Tamil Melodies', 'Ilaiyaraaja 80s 90s Hits Tamil', 'Ilaiyaraaja Hits']
+  },
+  {
+    name: 'spb',
+    match: /\b(?:s\.?\s*p\.?\s*b\.?|balasubrahmanyam|balasubramaniam|balasubramanyam)\b/i,
+    artistId: '455322',
+    playlists: ['826526781'],
+    queries: ['SPB Tamil Hits', 'SPB Evergreen Melodies', 'SPB Romantic Hits Tamil']
+  },
+  {
+    name: 'ar_rahman',
+    match: /\b(?:a\.?\s*r\.?\s*rahman|ar\s*rahman|a\s*r\s*r|arr)\b/i,
+    artistId: '456262',
+    queries: ['A. R. Rahman Tamil Hits', 'The Rahman Experience', 'AR Rahman Evergreen Tamil']
+  },
+  {
+    name: 'anirudh',
+    match: /\b(?:anirudh|anirudh\s*ravichander|ani)\b/i,
+    artistId: '459633',
+    queries: ['Anirudh Ravichander Tamil Hits', 'Anirudh Certified Bangers']
+  },
+  {
+    name: 'yuvan',
+    match: /\b(?:yuvan|yuvan\s*shankar\s*raja|u1)\b/i,
+    artistId: '455792',
+    queries: ['Yuvan Shankar Raja Tamil Hits', 'U1 Drug Hits']
+  },
+  {
+    name: 'harris',
+    match: /\b(?:harris|harris\s*jayaraj)\b/i,
+    artistId: '455125',
+    queries: ['Harris Jayaraj Tamil Hits', 'Harris Jayaraj Melodies']
+  },
+  {
+    name: 'yesudas',
+    match: /\b(?:k\.?\s*j\.?\s*yesudas|kj\s*yesudas|yesudas|ganagandharvan)\b/i,
+    artistId: '455439',
+    queries: ['KJ Yesudas Tamil Hits', 'KJ Yesudas Malayalam Hits']
+  },
+  {
+    name: 'sid_sriram',
+    match: /\b(?:sid\s*sriram)\b/i,
+    artistId: '887309',
+    queries: ['Sid Sriram Tamil Hits', 'The World of Sid Sriram']
+  },
+  {
+    name: 'vidyasagar',
+    match: /\b(?:vidyasagar)\b/i,
+    artistId: '455132',
+    queries: ['Vidyasagar Tamil Hits', 'Melody King Vidyasagar']
+  },
+  {
+    name: 'santhosh_narayanan',
+    match: /\b(?:santhosh\s*narayanan|sana)\b/i,
+    artistId: '458918',
+    queries: ['Santhosh Narayanan Tamil Hits']
+  },
+  {
+    name: 'gv_prakash',
+    match: /\b(?:g\.?\s*v\.?\s*prakash|gv\s*prakash)\b/i,
+    artistId: '455404',
+    queries: ['G.V. Prakash Kumar Tamil Hits']
+  },
+  {
+    name: 'chithra',
+    match: /\b(?:k\.?\s*s\.?\s*chithra|ks\s*chithra|chithra|chitra)\b/i,
+    artistId: '455140',
+    queries: ['K. S. Chithra Tamil Melodies', 'Chithra Evergreen Hits']
+  },
+  {
+    name: 'janaki',
+    match: /\b(?:s\.?\s*janaki|janaki)\b/i,
+    artistId: '455124',
+    queries: ['S. Janaki Tamil Hits', 'S Janaki Melodies']
+  },
+  {
+    name: 'shreya_ghoshal',
+    match: /\b(?:shreya\s*ghoshal|shreya)\b/i,
+    artistId: '455130',
+    queries: ['Shreya Ghoshal Tamil Melodies', 'Shreya Ghoshal Romantic Hits']
+  },
+  {
+    name: 'hariharan',
+    match: /\b(?:hariharan)\b/i,
+    artistId: '455135',
+    queries: ['Hariharan Tamil Hits', 'Hariharan Soulful Melodies']
+  },
+  {
+    name: 'unnikrishnan',
+    match: /\b(?:unnikrishnan|p\.?\s*unnikrishnan)\b/i,
+    artistId: '455380',
+    queries: ['P. Unnikrishnan Tamil Hits', 'Unnikrishnan Melodies']
+  },
+  {
+    name: 'swarnalatha',
+    match: /\b(?:swarnalatha)\b/i,
+    artistId: '455325',
+    queries: ['Swarnalatha Tamil Hits']
+  },
+  {
+    name: 'hiphop_tamizha',
+    match: /\b(?:hiphop\s*tamizha|hiphop\s*aadhi|adhi)\b/i,
+    artistId: '464656',
+    queries: ['Hiphop Tamizha Tamil Hits']
+  },
+  {
+    name: 'sai_abhyankkar',
+    match: /\b(?:sai\s*abhyankkar|abhyankkar)\b/i,
+    artistId: '16928738',
+    queries: ['Sai Abhyankkar Tamil Hits', 'iSaiAbhyankkar']
+  }
+];
+
 // Common Indian music query corrections / phonetic mappings
 const SEARCH_CORRECTIONS = [
-  // User query: "4 studios" -> "4 students" (Tamil 2004 youth movie by Jassie Gift with songs like Lajjavathiye)
   { pattern: /\b(?:4|four)\s*(?:studios?|studio)\b/gi, replacement: '4 students' },
   { pattern: /\bvetaiyan\b/gi, replacement: 'vettaiyan' },
   { pattern: /\bthuppaki\b/gi, replacement: 'thuppakki' },
@@ -400,57 +590,10 @@ app.get('/api/search', async (req, res) => {
       return res.json({ success: true, query: q, cached: true, results: cachedRes, total: cachedRes.length });
     }
 
-    // Generate intelligent query candidate variations
-    const rawQ = q;
-    const correctedRaw = applySearchCorrections(rawQ);
-    const noStopwords = cleanSearchStopwords(rawQ);
-    const correctedNoStopwords = applySearchCorrections(noStopwords);
-    const coreKeywords = stripSearchLanguage(noStopwords);
-    const correctedCore = applySearchCorrections(coreKeywords);
+    const lang = detectLanguage(q, language || 'tamil');
+    const year = detectYear(q);
+    const decade = detectDecade(q);
 
-    // Prioritized list of query variations
-    const candidateQueries = Array.from(new Set([
-      correctedCore,
-      correctedNoStopwords,
-      coreKeywords,
-      noStopwords,
-      correctedRaw,
-      rawQ
-    ])).filter(s => s && s.length >= 1);
-
-    const primarySongQuery = correctedCore || noStopwords || rawQ;
-    const primaryAlbumQuery = correctedCore || coreKeywords || noStopwords || rawQ;
-
-    // Concurrently search both:
-    // 1) Songs direct search
-    // 2) Albums / Movie Soundtrack search
-    const [songData, albumData] = await Promise.all([
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(primarySongQuery)}`),
-      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=6&q=${encodeURIComponent(primaryAlbumQuery)}`)
-    ]);
-
-    const albumList = albumData.results || [];
-    let songsFromAlbums = [];
-
-    // Filter top matching albums (matching movie name)
-    const matchingAlbums = albumList.slice(0, 3);
-    if (matchingAlbums.length > 0) {
-      const albumDetailPromises = matchingAlbums.map(alb => {
-        const albId = alb.id || alb.albumid;
-        return fetchSongsFromAlbum(albId, alb);
-      });
-      const albumSongsArrays = await Promise.all(albumDetailPromises);
-      albumSongsArrays.forEach(songs => {
-        songsFromAlbums.push(...songs);
-      });
-    }
-
-    // Raw songs from direct song search
-    const rawSongs = (songData.results || [])
-      .map(formatSongItem)
-      .filter(s => s && s.playUrl);
-
-    // Merge and Deduplicate by normalized title & id
     const finalResults = [];
     const seenTitles = new Set();
     const seenIds = new Set();
@@ -465,19 +608,218 @@ app.get('/api/search', async (req, res) => {
       }
     };
 
+    // ── 1. DECADE INTENT (e.g. "80s tamil melody songs", "90s tamil hits", "2000s") ──
+    if (decade) {
+      let targetedQueries = [];
+      let playlistQueries = [];
+      if (decade === '80s') {
+        targetedQueries = [`80s ${lang} Melodies`, `80s ${lang} Hits`, `Ilaiyaraaja 80s ${lang} Hits`];
+        playlistQueries = [`80s Romance - ${lang}`, `Best Of 80s  - ${lang}`];
+      } else if (decade === '90s') {
+        targetedQueries = [`90s ${lang} Melodies`, `90s ${lang} Hits`, `AR Rahman 90s ${lang} Hits`, `Deva 90s ${lang} Hits`];
+        playlistQueries = [`90s Romance - ${lang}`, `Best Of 90s - ${lang}`];
+      } else if (decade === '2000s') {
+        targetedQueries = [`2000s ${lang} Hits`, `2000s ${lang} Melodies`, `Harris Jayaraj 2000s ${lang}`];
+        playlistQueries = [`2000s Hits - ${lang}`];
+      } else if (decade === '70s') {
+        targetedQueries = [`70s ${lang} Hits`, `70s ${lang} Melodies`];
+        playlistQueries = [`70s - ${lang}`];
+      }
+
+      const pPromises = playlistQueries.map(async pq => {
+        try {
+          const pRes = await requestSaavn(`__call=search.getPlaylistResults&_format=json&cc=in&p=1&n=2&q=${encodeURIComponent(pq)}`);
+          if (pRes?.results && pRes.results.length > 0) {
+            const topP = pRes.results[0];
+            const pId = topP.id || topP.listid;
+            return await fetchSongsFromPlaylist(pId);
+          }
+        } catch (e) {}
+        return [];
+      });
+
+      const songPromises = targetedQueries.map(async tq => {
+        try {
+          const sRes = await requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(tq)}`);
+          return (sRes?.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+        } catch (e) {}
+        return [];
+      });
+
+      const [allPlaylists, allSongs] = await Promise.all([
+        Promise.all(pPromises),
+        Promise.all(songPromises)
+      ]);
+
+      allPlaylists.flat().forEach(addSong);
+      allSongs.flat().forEach(addSong);
+
+      if (finalResults.length > 0) {
+        setCache(cacheKey, finalResults, 10 * 60 * 1000);
+        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
+      }
+    }
+
+    // ── 2. KNOWN COMPOSER / SINGER INTENT (e.g. "Deva tamil songs", "Ilaiyaraaja songs") ──
+    const matchedArtist = KNOWN_ARTISTS.find(a => a.match.test(q));
+    if (matchedArtist) {
+      const artistPromises = [];
+
+      // Curated Playlists
+      if (matchedArtist.playlists) {
+        for (const pId of matchedArtist.playlists) {
+          artistPromises.push(fetchSongsFromPlaylist(pId));
+        }
+      }
+      // Top Songs from Artist Page
+      if (matchedArtist.artistId) {
+        artistPromises.push(fetchSongsFromArtist(matchedArtist.artistId, 25));
+      }
+      // Targeted queries
+      if (matchedArtist.queries) {
+        for (const tq of matchedArtist.queries) {
+          artistPromises.push((async () => {
+            try {
+              const res = await requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(tq)}`);
+              return (res?.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+            } catch (e) {
+              return [];
+            }
+          })());
+        }
+      }
+
+      const artistResults = await Promise.all(artistPromises);
+      artistResults.flat().forEach(addSong);
+
+      if (finalResults.length > 0) {
+        setCache(cacheKey, finalResults, 10 * 60 * 1000);
+        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
+      }
+    }
+
+    // ── 3. YEAR INTENT (e.g. "2025 tamil songs", "2024 hits", "2023 songs") ──
+    const noStopwords = cleanSearchStopwords(q);
+    const coreKeywords = stripSearchLanguage(noStopwords);
+    if (year && (!coreKeywords || coreKeywords === year || /^(songs?|hits?|padam|paattu)$/i.test(coreKeywords))) {
+      const yearQueries = [
+        `Best of ${year} ${lang}`,
+        `${year} ${lang} Hits`,
+        `Latest ${lang} Releases ${year}`
+      ];
+
+      const [albRes, sRes] = await Promise.all([
+        requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=4&q=${encodeURIComponent(`Best of ${year} ${lang}`)}`),
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=24&q=${encodeURIComponent(`${year} ${lang} Hits`)}`)
+      ]);
+
+      if (albRes?.results && albRes.results.length > 0) {
+        for (const alb of albRes.results.slice(0, 2)) {
+          const albSongs = await fetchSongsFromAlbum(alb.id || alb.albumid, alb);
+          albSongs.forEach(addSong);
+        }
+      }
+
+      (sRes?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
+
+      // Prioritize songs from that exact year
+      finalResults.sort((a, b) => {
+        const aYear = (a.year === year || a.album?.includes(year)) ? 1 : 0;
+        const bYear = (b.year === year || b.album?.includes(year)) ? 1 : 0;
+        return bYear - aYear;
+      });
+
+      if (finalResults.length > 0) {
+        setCache(cacheKey, finalResults, 10 * 60 * 1000);
+        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
+      }
+    }
+
+    // ── 4. MOVIE NAME + LANGUAGE / GENERAL SONG SEARCH ──
+    // e.g. "Leo Tamil song", "Amaran Tamil song", "Pushpa 2 Telugu song", "Aavesham Malayalam"
+    const correctedRaw = applySearchCorrections(q);
+    const correctedNoStopwords = applySearchCorrections(noStopwords);
+    const correctedCore = applySearchCorrections(coreKeywords);
+
+    const movieTarget = correctedCore || coreKeywords || correctedNoStopwords || noStopwords || correctedRaw || q;
+
+    // Search both:
+    // 1) Album search for Movie Soundtrack
+    // 2) Songs direct search
+    const [albumData, songData] = await Promise.all([
+      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(movieTarget)}`),
+      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`)
+    ]);
+
+    const albumList = albumData.results || [];
+    let songsFromAlbums = [];
+
+    // Filter albums matching the movie title and target language
+    const cleanMovieLower = movieTarget.toLowerCase();
+    const matchingAlbums = albumList.filter(alb => {
+      const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
+      const albTitle = (alb.title || '').toLowerCase();
+      const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle);
+      if (!isMatch) return false;
+      // If language specified, prioritize matching language
+      if (lang && albLang && albLang !== lang) return false;
+      return true;
+    });
+
+    const targetAlbums = matchingAlbums.length > 0 ? matchingAlbums.slice(0, 3) : albumList.slice(0, 2);
+
+    if (targetAlbums.length > 0) {
+      const albumDetailPromises = targetAlbums.map(alb => {
+        const albId = alb.id || alb.albumid;
+        return fetchSongsFromAlbum(albId, alb);
+      });
+      const albumSongsArrays = await Promise.all(albumDetailPromises);
+      albumSongsArrays.forEach(songs => {
+        songsFromAlbums.push(...songs);
+      });
+    }
+
+    // Direct songs
+    const rawSongs = (songData.results || [])
+      .map(formatSongItem)
+      .filter(s => s && s.playUrl);
+
     // Prioritize movie album tracklist first, then direct song matches
     songsFromAlbums.forEach(addSong);
     rawSongs.forEach(addSong);
 
-    // ── DEEP FALLBACK CASCADE ────────────────────────────────────────────────
-    // If still 0 or very few results, cascade through other candidate variations
+    // ── 5. DYNAMIC ARTIST SEARCH (for unmapped artists) ──
+    if (finalResults.length === 0 || /artist|singer|composer/i.test(q)) {
+      try {
+        const artistSearch = await requestSaavn(`__call=search.getArtistResults&_format=json&cc=in&p=1&n=3&q=${encodeURIComponent(movieTarget)}`);
+        if (artistSearch?.results && artistSearch.results.length > 0) {
+          const topArtist = artistSearch.results[0];
+          const artistId = topArtist.id || topArtist.artistid;
+          if (artistId) {
+            const artistSongs = await fetchSongsFromArtist(artistId, 20);
+            artistSongs.forEach(addSong);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // ── 6. DEEP FALLBACK CASCADE ──
     if (finalResults.length === 0) {
+      const candidateQueries = Array.from(new Set([
+        correctedCore,
+        correctedNoStopwords,
+        coreKeywords,
+        noStopwords,
+        correctedRaw,
+        q
+      ])).filter(s => s && s.length >= 1);
+
       for (const candidate of candidateQueries) {
-        if (candidate === primarySongQuery && candidate === primaryAlbumQuery) continue;
+        if (candidate === movieTarget) continue;
         
-        // Try album search for candidate
+        // Try album search
         const fbAlbumData = await requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=4&q=${encodeURIComponent(candidate)}`);
-        if (fbAlbumData && fbAlbumData.results && fbAlbumData.results.length > 0) {
+        if (fbAlbumData?.results && fbAlbumData.results.length > 0) {
           for (const alb of fbAlbumData.results.slice(0, 2)) {
             const albId = alb.id || alb.albumid;
             const songs = await fetchSongsFromAlbum(albId, alb);
@@ -485,10 +827,10 @@ app.get('/api/search', async (req, res) => {
           }
         }
 
-        // Try direct song search for candidate
+        // Try direct song search
         if (finalResults.length === 0) {
           const fbSongData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(candidate)}`);
-          if (fbSongData && fbSongData.results) {
+          if (fbSongData?.results) {
             fbSongData.results.map(formatSongItem).forEach(addSong);
           }
         }
@@ -497,10 +839,9 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // ── AUTOCOMPLETE FUZZY FALLBACK ──────────────────────────────────────────
-    // If still 0 results, use JioSaavn Autocomplete suggestions API to find matching album/song
+    // ── 7. AUTOCOMPLETE FUZZY FALLBACK ──
     if (finalResults.length === 0) {
-      const autoQuery = correctedCore || coreKeywords || correctedRaw || rawQ;
+      const autoQuery = movieTarget;
       try {
         const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(autoQuery)}`);
         if (autoData?.albums?.data && autoData.albums.data.length > 0) {
@@ -510,7 +851,7 @@ app.get('/api/search', async (req, res) => {
           }
         }
         if (finalResults.length === 0 && autoData?.songs?.data && autoData.songs.data.length > 0) {
-          for (const rawS of autoData.songs.data.slice(0, 8)) {
+          for (const rawS of autoData.songs.data.slice(0, 10)) {
             const fmt = formatSongItem(rawS);
             if (fmt && fmt.playUrl) addSong(fmt);
           }
@@ -520,10 +861,9 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // ── CURATED SHELVES LOCAL CACHE FALLBACK ─────────────────────────────────
-    // If still 0 results, match tokens against locally cached curated shelves
+    // ── 8. LOCAL CURATED CACHE FALLBACK ──
     if (finalResults.length === 0 && cachedCuratedShelves) {
-      const searchTerms = rawQ.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+      const searchTerms = q.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
       for (const shelf of cachedCuratedShelves) {
         for (const s of (shelf.songs || [])) {
           const match = searchTerms.some(term => 
@@ -551,33 +891,18 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// Simple in-memory cache for fast loading
-const cache = new Map();
-function getCache(key) {
-  const item = cache.get(key);
-  if (!item) return null;
-  if (Date.now() > item.expiry) {
-    cache.delete(key);
-    return null;
-  }
-  return item.data;
-}
-function setCache(key, data, ttlMs = 15 * 60 * 1000) {
-  cache.set(key, { data, expiry: Date.now() + ttlMs });
-}
-
 const CATEGORIES = [
   {
     id: 'tamil_trending',
     title: '🔥 Trending Tamil Hits',
-    subtitle: 'Latest chartbusters and blockbuster anthems',
-    query: 'Tamil Hits'
+    subtitle: 'Latest chartbusters and blockbuster anthems (2025 - 2026)',
+    query: 'Latest Tamil Hits'
   },
   {
     id: 'malayalam_melodies',
     title: '🌴 God\'s Own Melodies (Malayalam)',
     subtitle: 'Aavesham, Manjummel Boys, Premam & Soulful Beats',
-    query: 'Malayalam Hits'
+    query: 'Latest Malayalam Hits'
   },
   {
     id: 'ilayaraja_gold',
@@ -589,7 +914,7 @@ const CATEGORIES = [
     id: 'spb_chithra',
     title: '💖 SPB & K.S. Chithra Melodies',
     subtitle: 'Immortal romantic duets from the golden era',
-    query: 'SPB Chithra Tamil Romantic Melodies'
+    query: 'SPB Janaki Tamil Evergreen Duet'
   },
   {
     id: 'anirudh_party',
@@ -613,7 +938,7 @@ const CATEGORIES = [
     id: 'hindi_blockbusters',
     title: '🎧 Bollywood Hits',
     subtitle: 'Arijit Singh, Shreya Ghoshal & trending Hindi songs',
-    query: 'Hindi Trending Hits'
+    query: 'Latest Hindi Hits'
   }
 ];
 
@@ -622,7 +947,7 @@ async function fetchShelf(cat) {
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
-  const param = `__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=12&q=${encodeURIComponent(cat.query)}`;
+  const param = `__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=14&q=${encodeURIComponent(cat.query)}`;
   const data = await requestSaavn(param);
   const rawList = data.results || [];
   const songs = rawList.map(formatSongItem).filter(s => s && s.playUrl);
@@ -632,7 +957,7 @@ async function fetchShelf(cat) {
     subtitle: cat.subtitle,
     songs: songs.slice(0, 10)
   };
-  setCache(cacheKey, result, 30 * 60 * 1000); // 30 min cache
+  setCache(cacheKey, result, 60 * 60 * 1000); // 1 hour cache
   return result;
 }
 
@@ -641,8 +966,7 @@ async function warmShelves() {
   for (const cat of CATEGORIES) {
     try {
       await fetchShelf(cat);
-      // Small pause between fetches to prevent rate-limiting
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise(r => setTimeout(r, 200));
     } catch (e) {
       console.warn('Pre-warm error for', cat.id, e.message);
     }
@@ -650,12 +974,15 @@ async function warmShelves() {
   console.log('✅ All curated music shelves pre-warmed and cached!');
 }
 
-// 2. Curated Shelves API (Zero-latency instant response from pre-warmed cache)
+// 2. Curated Shelves API (Zero-latency instant response with dynamic auto-refresh)
 app.get('/api/curated-shelves', async (req, res) => {
   try {
-    if (cachedCuratedShelves && cachedCuratedShelves.length > 0) {
-      return res.json({ success: true, shelves: cachedCuratedShelves, cached: true });
+    const cacheKey = 'all_curated_shelves_live_v2';
+    const cachedLive = getCache(cacheKey);
+    if (cachedLive && cachedLive.length > 0) {
+      return res.json({ success: true, shelves: cachedLive, cached: true });
     }
+
     const shelves = [];
     for (const cat of CATEGORIES) {
       const shelf = await fetchShelf(cat);
@@ -663,9 +990,23 @@ app.get('/api/curated-shelves', async (req, res) => {
         shelves.push(shelf);
       }
     }
-    res.json({ success: true, shelves });
+
+    if (shelves.length > 0) {
+      setCache(cacheKey, shelves, 60 * 60 * 1000); // 1 hour dynamic TTL
+      return res.json({ success: true, shelves });
+    }
+
+    // Fallback to preloaded cache if live fetch yielded no items
+    if (cachedCuratedShelves && cachedCuratedShelves.length > 0) {
+      return res.json({ success: true, shelves: cachedCuratedShelves, cached: true });
+    }
+
+    res.json({ success: true, shelves: [] });
   } catch (error) {
     console.error('Shelves error:', error);
+    if (cachedCuratedShelves && cachedCuratedShelves.length > 0) {
+      return res.json({ success: true, shelves: cachedCuratedShelves, cached: true });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -678,31 +1019,31 @@ app.get('/api/shelf/:id', async (req, res) => {
   res.json({ success: true, shelf });
 });
 
-// 3. Trending by Language (Tamil, Malayalam, Telugu, Hindi, English, Retro)
+// 3. Trending by Language (Tamil, Malayalam, Telugu, Hindi, English, Retro) - Always Fresh!
 app.get('/api/trending', async (req, res) => {
   try {
     const lang = (req.query.language || 'tamil').toLowerCase();
-    const cacheKey = `trending_${lang}`;
+    const cacheKey = `trending_v2_${lang}`;
     const cached = getCache(cacheKey);
     if (cached) return res.json({ success: true, language: lang, results: cached });
 
     const queryMap = {
-      tamil: 'Tamil Hits',
-      malayalam: 'Malayalam Hits',
-      telugu: 'Telugu Hits',
-      hindi: 'Hindi Hits',
-      english: 'English Pop Hits',
-      retro: 'Ilaiyaraaja SPB Tamil Hits'
+      tamil: 'Latest Tamil Hits',
+      malayalam: 'Latest Malayalam Hits',
+      telugu: 'Latest Telugu Hits',
+      hindi: 'Latest Bollywood Hits',
+      english: 'Top Pop Hits',
+      retro: '80s 90s Tamil Evergreen Melodies'
     };
 
-    const q = queryMap[lang] || `${lang} hits`;
-    const param = `__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=24&q=${encodeURIComponent(q)}`;
+    const q = queryMap[lang] || `Latest ${lang} Hits`;
+    const param = `__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=28&q=${encodeURIComponent(q)}`;
     const data = await requestSaavn(param);
 
     const rawList = data.results || [];
     const formatted = rawList.map(formatSongItem).filter(s => s && s.playUrl);
 
-    setCache(cacheKey, formatted);
+    setCache(cacheKey, formatted, 30 * 60 * 1000);
     res.json({ success: true, language: lang, results: formatted });
   } catch (error) {
     console.error('Trending error:', error);
