@@ -726,15 +726,49 @@ app.get('/api/search', async (req, res) => {
 
     // ── CASE 4: GENERIC RECENCY / YEAR QUERY (e.g. "tamil new songs", "2026 songs") ──
     if (intent.isGenericNewOrYear) {
-      const queries = [
+      // Generic trending queries
+      const genericQueries = [
         `Latest ${lang} Hits ${intent.year || ''}`,
         `New ${lang} Songs ${intent.year || ''}`,
         `Latest ${lang} ${intent.year || ''}`,
         `Best of ${intent.year || ''} ${lang}`,
         `${lang} Trending Hits`
       ];
-      const promises = queries.map(qStr =>
-        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=15&q=${encodeURIComponent(qStr.trim())}`)
+
+      // ── Curated 2026 Tamil chartbuster targeted queries ──
+      // These ensure the viral trending Tamil songs appear in results
+      // when searching "new movie songs 2026 tamil" / "tamil new songs" / "latest tamil 2026"
+      const curatedChartbusters2026 = [
+        // OM Chapter 1: Udhiram - The Blood Wood (Dhanush, Mammootty, Sai Abhyankkar)
+        'Veezha Veera OM Chapter 1 Tamil',
+        'FA FA FA OM Chapter 1 Dhanush Tamil',
+        // Jailer 2 (Rajinikanth, Anirudh, Nelson)
+        'Ala Bolelo Jailer 2 Rajinikanth Anirudh Tamil',
+        'Putaapu Gang Jailer 2 Anirudh Tamil',
+        // Rathinamo - Tamil Indie (Saurav Srisan / Tanisha Gnanavel)
+        'Rathinamo Saurav Srisan Tamil Indie',
+        'Rathinamo Female Version Tamil',
+        // Pattampoochi - Vishwanath and Sons (Suriya, GV Prakash)
+        'Pattampoochi Vishwanath and Sons Suriya GV Prakash Tamil',
+        // Vaama Vaama - Idhayam Murali (Dhanush, Thaman)
+        'Vaama Vaama Idhayam Murali Dhanush Thaman Tamil',
+        // Ooroda Oththa Don - Baththa (Vijay Sethupathi, Sai Abhyankkar)
+        'Ooroda Oththa Don Baththa Vijay Sethupathi Tamil',
+        // Aeroplane - SCENE (Suriya, Sushin Shyam)
+        'Aeroplane SCENE Suriya Sushin Shyam Tamil',
+        // Usure Needhan Pulla - MANDAADI (Soori, GV Prakash)
+        'Usure Needhan Pulla Mandaadi Soori GV Prakash Tamil',
+        // KALYANI (Shreya Ghoshal, ARJN)
+        'Kalyani Shreya Ghoshal ARJN Tamil',
+        // Kalyana Virundhu - DOROTHY (Ilaiyaraaja, Karthik Subbaraj)
+        'Kalyana Virundhu Dorothy Ilaiyaraaja Tamil',
+        // Athis Brothers (Slim Lazer YD)
+        'Athis Brothers Slim Lazer YD Kash Villanz Tamil'
+      ];
+
+      const allQueries = [...genericQueries, ...curatedChartbusters2026];
+      const promises = allQueries.map(qStr =>
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=10&q=${encodeURIComponent(qStr.trim())}`)
       );
       const responses = await Promise.all(promises);
       responses.forEach(r => collectFromResults(r?.results));
