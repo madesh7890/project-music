@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v24 — Strict Language Search Filtering + Sleep Timer Sheet Fix
-const CACHE_NAME = 'music-app-v24';
+// MUSIC - Service Worker v25 — OM Chapter 1 Search Expansion & 2026 Hits Prioritization
+const CACHE_NAME = 'music-app-v25';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

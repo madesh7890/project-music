@@ -383,11 +383,11 @@ function setCache(key, data, ttlMs = 15 * 60 * 1000) {
   cache.set(key, { data, expiry: Date.now() + ttlMs });
 }
 
-// Stopword cleaner (removes generic music descriptors)
+// Stopword cleaner (removes generic music descriptors & recency intents)
 function cleanSearchStopwords(q) {
   if (!q) return '';
   return q
-    .replace(/\b(songs?|movie|movies|album|albums|padam|track|tracks|audio|mp3|video|lyrics|hd|bgm|ost|paadal|paattu|pattu|full|ringtone|remix)\b/gi, '')
+    .replace(/\b(songs?|movie|movies|album|albums|padam|track|tracks|audio|mp3|video|lyrics|hd|bgm|ost|paadal|paattu|pattu|full|ringtone|remix|new|latest|trending|viral|hits?|top|best|recent|superhit|chartbusters?)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -547,6 +547,12 @@ const KNOWN_ARTISTS = [
     match: /\b(?:sai\s*abhyankkar|abhyankkar)\b/i,
     artistId: '16928738',
     queries: ['Sai Abhyankkar Tamil Hits', 'iSaiAbhyankkar']
+  },
+  {
+    name: 'dhanush',
+    match: /\b(?:dhanush|actor\s*dhanush)\b/i,
+    artistId: '455662',
+    queries: ['Dhanush Tamil Hits', 'Dhanush Best Songs', 'Best of Dhanush']
   }
 ];
 
@@ -561,6 +567,8 @@ const SEARCH_CORRECTIONS = [
   { pattern: /\bpadalgal\b/gi, replacement: 'paadalgal' },
   { pattern: /\bpaatugal\b/gi, replacement: 'paattugal' },
   { pattern: /\btreanding\b/gi, replacement: 'trending' },
+  { pattern: /\boda\b/gi, replacement: '' },
+  { pattern: /\budeaya\b/gi, replacement: '' },
   { pattern: /\b(?:4|four)\s*(?:studios?|studio)\b/gi, replacement: '4 students' },
   { pattern: /\bvetaiyan\b/gi, replacement: 'vettaiyan' },
   { pattern: /\bthuppaki\b/gi, replacement: 'thuppakki' },
@@ -689,7 +697,8 @@ app.get('/api/search', async (req, res) => {
     }
 
     // ── 2. KNOWN COMPOSER / SINGER INTENT (e.g. "Deva tamil songs", "Ilaiyaraaja songs") ──
-    const matchedArtist = KNOWN_ARTISTS.find(a => a.match.test(correctedQuery));
+    const isOmInQuery = /\bom\b/i.test(correctedQuery);
+    const matchedArtist = !isOmInQuery ? KNOWN_ARTISTS.find(a => a.match.test(correctedQuery)) : null;
     if (matchedArtist) {
       const artistPromises = [];
 
@@ -766,6 +775,45 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
+    // ── 3.5 OM / DHANUSH OM MOVIE INTENT ──
+    // "OM Chapter 1: Udhiram - The Blood Wood" (2026, Tamil, Dhanush / Sai Abhyankkar)
+    // Singles: "Veezha Veera", "FA FA FA", "Alaakaa Loova", "OM Special Duty", "The Wild Theme", "Senjudare"
+    const isOmMovie = (
+      /\bom\b/i.test(coreWithoutYear) ||
+      (/\bom\b/i.test(correctedQuery) && (/\b(movie|dhanush|chapter|udhiram|sai\s*abhyankkar|2026)\b/i.test(correctedQuery) || coreWithoutYear === 'om'))
+    );
+
+    if (isOmMovie) {
+      const omQueries = [
+        `OM Chapter 1 ${lang}`,
+        `OM Chapter ${lang}`,
+        `OM Udhiram ${lang}`,
+        `OM Special Duty ${lang}`,
+        `OM Dhanush ${lang}`,
+        `Veezha Veera ${lang}`,
+        `FA FA FA ${lang}`
+      ];
+      const promises = omQueries.map(oq =>
+        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=15&q=${encodeURIComponent(oq)}`)
+      );
+      const responses = await Promise.all(promises);
+      responses.forEach(res => {
+        (res?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
+      });
+
+      // Prioritize 2026 OM Chapter 1 releases above any older devotional/retrospective tracks
+      finalResults.sort((a, b) => {
+        const aScore = (a.year === '2026' || a.album?.includes('Chapter 1') || a.title?.includes('Chapter 1')) ? 2 : (a.year === '2025' ? 1 : 0);
+        const bScore = (b.year === '2026' || b.album?.includes('Chapter 1') || b.title?.includes('Chapter 1')) ? 2 : (b.year === '2025' ? 1 : 0);
+        return bScore - aScore;
+      });
+
+      if (finalResults.length > 0) {
+        setCache(cacheKey, finalResults, 10 * 60 * 1000);
+        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
+      }
+    }
+
     // ── 4. SPECIFIC MOVIE NAME + LANGUAGE / SOUNDTRACK SEARCH ──
     // e.g. "om new moive song tamil", "om movie song tamil", "Leo Tamil song", "Amaran Tamil song"
     const movieTarget = coreWithoutYear || coreKeywords || noStopwords || correctedQuery;
@@ -817,6 +865,21 @@ app.get('/api/search', async (req, res) => {
     songsFromAlbums.forEach(addSong);
     rawSongs1.forEach(addSong);
     rawSongs2.forEach(addSong);
+
+    // Sort by year / recency if specific year or trending/new was requested
+    if (year) {
+      finalResults.sort((a, b) => {
+        const aYr = (a.year === year || a.album?.includes(year) || a.title?.includes(year)) ? 1 : 0;
+        const bYr = (b.year === year || b.album?.includes(year) || b.title?.includes(year)) ? 1 : 0;
+        return bYr - aYr;
+      });
+    } else if (isLatestOrTrending) {
+      finalResults.sort((a, b) => {
+        const aScore = (a.year === '2026' ? 3 : (a.year === '2025' ? 2 : (a.year === '2024' ? 1 : 0)));
+        const bScore = (b.year === '2026' ? 3 : (b.year === '2025' ? 2 : (b.year === '2024' ? 1 : 0)));
+        return bScore - aScore;
+      });
+    }
 
     // ── 5. DYNAMIC ARTIST SEARCH (for unmapped artists) ──
     if (finalResults.length === 0 || /artist|singer|composer/i.test(q)) {
