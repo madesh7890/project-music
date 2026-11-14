@@ -784,31 +784,49 @@ app.get('/api/search', async (req, res) => {
     );
 
     if (isOmMovie) {
+      // These are the EXACT queries that return OM Chapter 1 tracks (confirmed via API testing)
       const omQueries = [
         `OM Chapter 1 ${lang}`,
         `OM Chapter ${lang}`,
         `OM Udhiram ${lang}`,
-        `OM Special Duty ${lang}`,
-        `OM Dhanush ${lang}`,
         `Veezha Veera ${lang}`,
-        `FA FA FA ${lang}`
+        `FA FA FA ${lang}`,
+        `OM Dhanush`,
+        `Senjudare ${lang}`,
+        `Alaakaa Loova ${lang}`
       ];
       const promises = omQueries.map(oq =>
-        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=15&q=${encodeURIComponent(oq)}`)
+        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=10&q=${encodeURIComponent(oq)}`)
       );
       const responses = await Promise.all(promises);
-      responses.forEach(res => {
-        (res?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
-      });
 
-      // Prioritize 2026 OM Chapter 1 releases above any older devotional/retrospective tracks
-      finalResults.sort((a, b) => {
-        const aScore = (a.year === '2026' || a.album?.includes('Chapter 1') || a.title?.includes('Chapter 1')) ? 2 : (a.year === '2025' ? 1 : 0);
-        const bScore = (b.year === '2026' || b.album?.includes('Chapter 1') || b.title?.includes('Chapter 1')) ? 2 : (b.year === '2025' ? 1 : 0);
-        return bScore - aScore;
+      // STRICT filter: ONLY accept songs from "OM Chapter 1: Udhiram" album (2026)
+      // This prevents KGF Chapter 1, Kantara Chapter 1, Mafia etc from leaking in
+      const isOmChapter1Song = (s) => {
+        if (!s) return false;
+        const albumL = (s.album || '').toLowerCase();
+        const titleL = (s.title || '').toLowerCase();
+        return (
+          albumL.includes('udhiram') ||
+          albumL.includes('om chapter') ||
+          albumL.includes('blood wood') ||
+          titleL.includes('udhiram') ||
+          titleL.includes('blood wood') ||
+          (albumL.includes('om chapter') && s.year === '2026')
+        );
+      };
+
+      responses.forEach(response => {
+        (response?.results || []).map(formatSongItem).filter(s => s && s.playUrl && isOmChapter1Song(s)).forEach(addSong);
       });
 
       if (finalResults.length > 0) {
+        // Sort: 2026 OM Chapter 1 tracks always come first
+        finalResults.sort((a, b) => {
+          const aScore = (a.year === '2026') ? 2 : (a.year === '2025' ? 1 : 0);
+          const bScore = (b.year === '2026') ? 2 : (b.year === '2025' ? 1 : 0);
+          return bScore - aScore;
+        });
         setCache(cacheKey, finalResults, 10 * 60 * 1000);
         return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
       }

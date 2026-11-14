@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v25 — OM Chapter 1 Search Expansion & 2026 Hits Prioritization
-const CACHE_NAME = 'music-app-v25';
+// MUSIC - Service Worker v26 — OM Chapter 1 Strict Filter: No KGF/Kantara/Other Chapter leakage
+const CACHE_NAME = 'music-app-v26';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
