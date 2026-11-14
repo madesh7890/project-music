@@ -411,12 +411,22 @@ function computeSongRelevanceScore(song, intent) {
   }
 
   // 3. Special OM Movie Intent
+  const isOmChapter1Song = (
+    rawAlbum.includes('udhiram') || rawAlbum.includes('blood wood') ||
+    rawAlbum.includes('om chapter') || rawTitle.includes('udhiram') ||
+    rawAlbum.includes('om - chapter') || rawAlbum.includes('om chapter 1')
+  );
   if (intent.isOmMovie) {
-    if (rawAlbum.includes('udhiram') || rawAlbum.includes('blood wood') || rawAlbum.includes('om chapter') || rawTitle.includes('udhiram')) {
+    if (isOmChapter1Song) {
       score += 150; // Massively boost OM Chapter 1: Udhiram!
     } else if (rawAlbum.includes('kgf') || rawAlbum.includes('kantara') || rawAlbum.includes('mafia')) {
       score -= 100; // Strictly penalize KGF/Kantara/Mafia Chapter 1 leakage
     }
+  }
+
+  // Also boost OM Chapter 1 songs in generic "new 2026 tamil" queries
+  if (intent.isGenericNewOrYear && isOmChapter1Song) {
+    score += 80; // OM Chapter 1 is a top 2026 Tamil chartbuster
   }
 
   // 4. Artist Match Bonus
@@ -428,15 +438,18 @@ function computeSongRelevanceScore(song, intent) {
 
   // 5. Language Match Bonus & Isolation
   if (intent.explicitLanguageRequested) {
-    const isLangMatch = (
+    const isStrictLangMatch = (
       rawLang === intent.lang ||
       rawTitle.includes(`[${intent.lang}]`) ||
       rawTitle.includes(`(${intent.lang})`) ||
       rawAlbum.includes(`[${intent.lang}]`) ||
       rawAlbum.includes(`(${intent.lang})`)
     );
-    if (isLangMatch) {
+    if (isStrictLangMatch) {
       score += 60; // Strong reward for requested language
+    } else if (isOmChapter1Song) {
+      // OM Chapter 1, but dubbed in Telugu/Hindi/etc.
+      score -= 30; // Deprioritize so Tamil version always ranks above dubs!
     } else {
       score -= 150; // Heavy penalty for language mismatch when explicit language was specified!
     }
@@ -470,7 +483,9 @@ function computeSongRelevanceScore(song, intent) {
 
   // 7. Noise Penalties (Devotional, Karaoke, Covers, Slowed/Reverb)
   const isDevotionalSong = /\b(devotional|bhakti|bhajan|bakthi|suprabhatam|chanting|slokas?|namavali|om namo|om namashivaya|sahasranamam|gayatri|aarti|stotram)\b/i.test(rawTitle + ' ' + rawAlbum);
-  if (isDevotionalSong && !intent.isDevotionalExplicit) {
+  // OM Chapter 1 movie songs should NEVER be flagged as devotional, even if album has "om"
+  const isOmChapter1Album = rawAlbum.includes('udhiram') || rawAlbum.includes('blood wood') || rawAlbum.includes('om chapter');
+  if (isDevotionalSong && !intent.isDevotionalExplicit && !isOmChapter1Album) {
     score -= 120; // Severe penalty unless user searched for devotional
   }
 

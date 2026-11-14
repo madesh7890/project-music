@@ -742,6 +742,8 @@ app.get('/api/search', async (req, res) => {
         // OM Chapter 1: Udhiram - The Blood Wood (Dhanush, Mammootty, Sai Abhyankkar)
         'Veezha Veera OM Chapter 1 Tamil',
         'FA FA FA OM Chapter 1 Dhanush Tamil',
+        'OM Chapter 1 Udhiram Tamil Songs',
+        'OM Udhiram Blood Wood Tamil 2026',
         // Jailer 2 (Rajinikanth, Anirudh, Nelson)
         'Ala Bolelo Jailer 2 Rajinikanth Anirudh Tamil',
         'Putaapu Gang Jailer 2 Anirudh Tamil',
@@ -772,6 +774,23 @@ app.get('/api/search', async (req, res) => {
       );
       const responses = await Promise.all(promises);
       responses.forEach(r => collectFromResults(r?.results));
+
+      // ── Also fetch OM Chapter 1 album tracklist directly to guarantee all songs appear ──
+      // Search for OM album and fetch full tracklist
+      try {
+        const omAlbumSearch = await requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=5&q=${encodeURIComponent('OM Chapter 1 Udhiram Tamil')}`);
+        const omAlbums = omAlbumSearch?.results || [];
+        const omAlbum = omAlbums.find(a => {
+          const t = (a.title || '').toLowerCase();
+          return t.includes('udhiram') || t.includes('om chapter') || t.includes('blood wood');
+        });
+        if (omAlbum) {
+          const omAlbumSongs = await fetchSongsFromAlbum(omAlbum.id || omAlbum.albumid, omAlbum);
+          candidates.push(...omAlbumSongs);
+        }
+      } catch(e) {
+        // silent — curated song queries above already cover OM songs
+      }
     }
 
     // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH ──
