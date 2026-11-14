@@ -4806,6 +4806,187 @@ body {
   }
 }
 
+/* ── Language Quick Filter Chips ────────────────────────────────────────── */
+.search-lang-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 0 0 14px 0;
+  margin-top: -4px;
+}
+.search-lang-chips::-webkit-scrollbar { display: none; }
+.lang-chips-label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: rgba(255,255,255,0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.search-lang-chip {
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  color: rgba(255,255,255,0.6);
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.search-lang-chip.active {
+  background: rgba(30,215,96,0.14);
+  border-color: #1ed760;
+  color: #1ed760;
+}
+
+/* ── Best Match / Top Result Spotlight Card ────────────────────────────── */
+.search-top-match-card {
+  background: linear-gradient(135deg, rgba(30,215,96,0.14) 0%, rgba(20,20,20,0.85) 100%);
+  border: 1.5px solid rgba(30,215,96,0.35);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 22px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(30,215,96,0.08);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+.search-top-match-card:hover {
+  border-color: rgba(30,215,96,0.6);
+  transform: translateY(-2px);
+}
+.top-match-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  color: #1ed760;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.top-match-inner {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.top-match-art-wrap {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  background: #111;
+}
+.top-match-art-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.top-match-play-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #1ed760;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.top-match-play-btn:hover {
+  transform: scale(1.1);
+  background: #22e668;
+}
+.top-match-meta {
+  flex: 1;
+  min-width: 0;
+}
+.top-match-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.top-match-artist {
+  font-size: 0.88rem;
+  color: rgba(255,255,255,0.7);
+  margin: 0 0 10px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.top-match-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.top-match-tag {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.75);
+}
+.top-match-lang-tag {
+  color: #1ed760;
+  background: rgba(30,215,96,0.1);
+  border-color: rgba(30,215,96,0.3);
+}
+
+/* ── Show More Results (Collapsible Noise/Devotional section) ────────────── */
+.search-noise-wrapper {
+  margin-top: 28px;
+  margin-bottom: 20px;
+}
+.btn-show-more-results {
+  width: 100%;
+  padding: 13px 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(255,255,255,0.16);
+  border-radius: 12px;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-show-more-results:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.3);
+  color: #fff;
+}
+.btn-show-more-results .toggle-arrow {
+  font-size: 1.1rem;
+  transition: transform 0.25s ease;
+}
+.btn-show-more-results.open .toggle-arrow {
+  transform: rotate(180deg);
+}
+.noise-songs-grid {
+  margin-top: 14px;
+}
+
 /* ─── Scrollbar refinement ─── */
 ::-webkit-scrollbar {
   width: 5px;

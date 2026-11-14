@@ -2162,7 +2162,7 @@ class MusicApp {
       this.searchLoader.style.display = 'none';
 
       if (data.success && data.results) {
-        this.renderSearchResults(data.results, query);
+        this.renderSearchResults(data.results, query, data);
       }
     } catch (e) {
       this.searchLoader.style.display = 'none';
@@ -2170,7 +2170,7 @@ class MusicApp {
     }
   }
 
-  renderSearchResults(songs, query) {
+  renderSearchResults(songs, query, data = {}) {
     this.searchResultsSection.style.display = 'block';
     this.homeView.style.display = 'none';
     this.customView.style.display = 'none';
@@ -2182,7 +2182,63 @@ class MusicApp {
     this._lastSearchSongs = songs;
     this._lastSearchQuery = query;
 
-    // ── Horizontal swipe shelf (top 8 matches) ──
+    // ── 1. Top Result / Best Match Banner Card ──
+    const topMatchCard = document.getElementById('searchTopMatchCard');
+    const topMatch = data.topMatch || (songs.length > 0 ? songs[0] : null);
+    if (topMatchCard && topMatch) {
+      const tArt = document.getElementById('topMatchArt');
+      const tTitle = document.getElementById('topMatchTitle');
+      const tArtist = document.getElementById('topMatchArtist');
+      const tAlbum = document.getElementById('topMatchAlbumTag');
+      const tYear = document.getElementById('topMatchYearTag');
+      const tLang = document.getElementById('topMatchLangTag');
+      const tPlayBtn = document.getElementById('topMatchPlayBtn');
+
+      if (tTitle) tTitle.textContent = topMatch.title;
+      if (tArtist) tArtist.textContent = topMatch.artist || 'Unknown Artist';
+      if (tArt) tArt.src = topMatch.image || topMatch.imageLow || '';
+      if (tAlbum) tAlbum.textContent = topMatch.album || 'Single';
+      if (tYear) tYear.textContent = topMatch.year || '2026';
+      if (tLang) tLang.textContent = (topMatch.language || 'Tamil').toUpperCase();
+      topMatchCard.style.display = 'block';
+
+      if (tPlayBtn) {
+        tPlayBtn.onclick = (e) => {
+          e.stopPropagation();
+          this.playSong(topMatch, songs);
+        };
+      }
+      topMatchCard.onclick = () => {
+        this.playSong(topMatch, songs);
+      };
+    } else if (topMatchCard) {
+      topMatchCard.style.display = 'none';
+    }
+
+    // ── 2. Language Quick Filter Chips ──
+    const langChips = document.getElementById('searchLangChips');
+    if (langChips) {
+      langChips.querySelectorAll('.search-lang-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.lang === 'all');
+      });
+      const newLangChips = langChips.cloneNode(true);
+      langChips.parentNode.replaceChild(newLangChips, langChips);
+      newLangChips.querySelectorAll('.search-lang-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          newLangChips.querySelectorAll('.search-lang-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          const selLang = chip.dataset.lang;
+          if (selLang === 'all') {
+            this._applySearchFilter('all', songs);
+          } else {
+            const filteredByLang = songs.filter(s => (s.language || '').toLowerCase() === selLang);
+            this._applySearchFilter('all', filteredByLang);
+          }
+        });
+      });
+    }
+
+    // ── 3. Horizontal swipe shelf (top 8 matches) ──
     const shelfContainer = document.getElementById('searchShelfContainer');
     const shelfRow = document.getElementById('searchShelfRow');
     if (shelfContainer && shelfRow) {
@@ -2198,7 +2254,7 @@ class MusicApp {
       }
     }
 
-    // ── Wire filter pills (once per new search) ──
+    // ── 4. Wire filter pills (once per new search) ──
     const filterBar = document.getElementById('searchFilterBar');
     if (filterBar) {
       // Reset to All active
@@ -2215,6 +2271,34 @@ class MusicApp {
           this._applySearchFilter(pill.dataset.filter, songs);
         });
       });
+    }
+
+    // ── 5. Show More / Collapsible Lower-Relevance Results ──
+    const noiseWrapper = document.getElementById('searchNoiseWrapper');
+    const noiseGrid = document.getElementById('searchNoiseGrid');
+    const noiseCountLabel = document.getElementById('noiseCountLabel');
+    const noiseBtn = document.getElementById('btnShowMoreResults');
+    const noiseSongs = data.noise || [];
+
+    if (noiseWrapper && noiseGrid && noiseSongs.length > 0) {
+      if (noiseCountLabel) noiseCountLabel.textContent = noiseSongs.length;
+      noiseWrapper.style.display = 'block';
+      noiseGrid.innerHTML = '';
+      noiseSongs.forEach(song => {
+        const card = this.createSongCard(song, noiseSongs);
+        noiseGrid.appendChild(card);
+      });
+      noiseGrid.style.display = 'none';
+      if (noiseBtn) {
+        noiseBtn.classList.remove('open');
+        noiseBtn.onclick = () => {
+          const isOpen = noiseGrid.style.display !== 'none';
+          noiseGrid.style.display = isOpen ? 'none' : 'grid';
+          noiseBtn.classList.toggle('open', !isOpen);
+        };
+      }
+    } else if (noiseWrapper) {
+      noiseWrapper.style.display = 'none';
     }
 
     // Show empty-state or render all songs
@@ -2297,6 +2381,10 @@ class MusicApp {
     // Hide swipe shelf
     const shelf = document.getElementById('searchShelfContainer');
     if (shelf) shelf.style.display = 'none';
+    const topCard = document.getElementById('searchTopMatchCard');
+    if (topCard) topCard.style.display = 'none';
+    const noise = document.getElementById('searchNoiseWrapper');
+    if (noise) noise.style.display = 'none';
   }
 
   async handleLanguageFilter(lang) {

@@ -239,6 +239,39 @@
           <button class="search-filter-pill" data-filter="artists">🎤 By Artists</button>
         </div>
 
+        <!-- Language Quick Filter Chips -->
+        <div class="search-lang-chips" id="searchLangChips">
+          <span class="lang-chips-label">Language:</span>
+          <button class="search-lang-chip active" data-lang="all">All</button>
+          <button class="search-lang-chip" data-lang="tamil">தமிழ் (Tamil)</button>
+          <button class="search-lang-chip" data-lang="telugu">తెలుగు (Telugu)</button>
+          <button class="search-lang-chip" data-lang="malayalam">മലയാളം (Malayalam)</button>
+          <button class="search-lang-chip" data-lang="hindi">हिंदी (Hindi)</button>
+          <button class="search-lang-chip" data-lang="english">English</button>
+        </div>
+
+        <!-- Best Match / Top Result Spotlight Card (Big Card UX) -->
+        <div class="search-top-match-card" id="searchTopMatchCard" style="display: none;">
+          <div class="top-match-badge">⭐ BEST MATCH</div>
+          <div class="top-match-inner">
+            <div class="top-match-art-wrap">
+              <img id="topMatchArt" src="" alt="Top Result">
+              <button class="top-match-play-btn" id="topMatchPlayBtn" title="Play Top Match">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </button>
+            </div>
+            <div class="top-match-meta">
+              <h3 class="top-match-title" id="topMatchTitle">Title</h3>
+              <p class="top-match-artist" id="topMatchArtist">Artist</p>
+              <div class="top-match-tags">
+                <span class="top-match-tag" id="topMatchAlbumTag">Album</span>
+                <span class="top-match-tag" id="topMatchYearTag">2026</span>
+                <span class="top-match-tag top-match-lang-tag" id="topMatchLangTag">Tamil</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Horizontal Swipe Shelf for Top Matches (Swipe left to right) -->
         <div class="search-shelf-container" id="searchShelfContainer" style="display: none;">
           <div class="search-shelf-header">
@@ -250,6 +283,15 @@
 
         <!-- Full Songs Grid -->
         <div class="songs-grid" id="searchResultsGrid"></div>
+
+        <!-- Show More / Alternative Versions & Additional Results -->
+        <div class="search-noise-wrapper" id="searchNoiseWrapper" style="display: none;">
+          <button class="btn-show-more-results" id="btnShowMoreResults">
+            <span>Show Additional / Alternative Results (<span id="noiseCountLabel">0</span>)</span>
+            <span class="toggle-arrow" id="noiseToggleArrow">▾</span>
+          </button>
+          <div class="noise-songs-grid songs-grid" id="searchNoiseGrid" style="display: none;"></div>
+        </div>
       </section>
 
       <!-- Home View Container -->

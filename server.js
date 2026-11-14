@@ -592,7 +592,16 @@ function applySearchCorrections(str) {
   return res.replace(/\s+/g, ' ').trim();
 }
 
-// 1. Universal Search API (Songs + Full Movie Albums + Smart Fallback Engine)
+const {
+  parseSearchIntent,
+  computeSongRelevanceScore,
+  deduplicateAndGroup,
+  transliterateTamil,
+  phoneticNormalize,
+  stringSimilarity
+} = require('./search_engine');
+
+// 1. Universal Search API (Songs + Full Movie Albums + Smart Ranking & Grouping Engine)
 app.get('/api/search', async (req, res) => {
   try {
     let { q, language, page = 1, limit = 28 } = req.query;
@@ -604,60 +613,59 @@ app.get('/api/search', async (req, res) => {
     const cacheKey = `search_${q.toLowerCase()}_${language || ''}_${page}`;
     const cachedRes = getCache(cacheKey);
     if (cachedRes) {
-      return res.json({ success: true, query: q, cached: true, results: cachedRes, total: cachedRes.length });
+      return res.json({ success: true, query: q, cached: true, ...cachedRes });
     }
 
-    const correctedQuery = applySearchCorrections(q);
-    const lang = detectLanguage(correctedQuery, language || 'tamil');
-    const year = detectYear(correctedQuery);
-    const decade = detectDecade(correctedQuery);
+    const intent = parseSearchIntent(q, language);
+    const lang = intent.lang;
+    const candidates = [];
 
-    const explicitLanguageRequested = Boolean(
-      language || correctedQuery.match(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i)
-    );
-
-    const finalResults = [];
-    const seenTitles = new Set();
-    const seenIds = new Set();
-
-    function isLanguageMatch(song) {
-      if (!explicitLanguageRequested) return true;
-      if (!song) return false;
-      const sLang = (song.language || '').toLowerCase();
-      if (sLang === lang) return true;
-      const t = (song.title || '').toLowerCase();
-      const a = (song.album || '').toLowerCase();
-      if (t.includes(`(${lang})`) || t.includes(`[${lang}]`) || a.includes(`(${lang})`) || a.includes(`[${lang}]`)) {
-        return true;
-      }
-      return false;
-    }
-
-    const addSong = (song) => {
-      if (!song || !song.id || !song.playUrl) return;
-      if (!isLanguageMatch(song)) return; // Strictly enforce requested language!
-      const norm = normalizeSongTitle(song.title);
-      if (!seenTitles.has(norm) && !seenIds.has(song.id)) {
-        seenTitles.add(norm);
-        seenIds.add(song.id);
-        finalResults.push(song);
+    // Helper to format & collect Saavn raw items
+    const collectFromResults = (items) => {
+      if (!Array.isArray(items)) return;
+      for (const item of items) {
+        const formatted = formatSongItem(item);
+        if (formatted && formatted.playUrl) {
+          candidates.push(formatted);
+        }
       }
     };
 
-    // ── 1. DECADE INTENT (e.g. "80s tamil melody songs", "90s tamil hits", "2000s") ──
-    if (decade) {
+    // ── CASE 1: OM MOVIE / DHANUSH OM INTENT ──
+    // "OM Chapter 1: Udhiram - The Blood Wood" (2026, Tamil, Dhanush / Sai Abhyankkar)
+    if (intent.isOmMovie) {
+      const omQueries = [
+        `OM Chapter 1 ${lang}`,
+        `OM Chapter ${lang}`,
+        `OM Udhiram ${lang}`,
+        `Veezha Veera ${lang}`,
+        `FA FA FA ${lang}`,
+        `OM Special Duty ${lang}`,
+        `OM Dhanush`,
+        `Senjudare ${lang}`,
+        `Alaakaa Loova ${lang}`
+      ];
+      const promises = omQueries.map(oq =>
+        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=12&q=${encodeURIComponent(oq)}`)
+      );
+      const responses = await Promise.all(promises);
+      responses.forEach(r => collectFromResults(r?.results));
+    }
+
+    // ── CASE 2: DECADE INTENT (e.g. "80s tamil melodies", "90s hits") ──
+    if (intent.decade) {
       let targetedQueries = [];
       let playlistQueries = [];
-      if (decade === '80s') {
+      if (intent.decade === '80s') {
         targetedQueries = [`80s ${lang} Melodies`, `80s ${lang} Hits`, `Ilaiyaraaja 80s ${lang} Hits`];
         playlistQueries = [`80s Romance - ${lang}`, `Best Of 80s  - ${lang}`];
-      } else if (decade === '90s') {
+      } else if (intent.decade === '90s') {
         targetedQueries = [`90s ${lang} Melodies`, `90s ${lang} Hits`, `AR Rahman 90s ${lang} Hits`, `Deva 90s ${lang} Hits`];
         playlistQueries = [`90s Romance - ${lang}`, `Best Of 90s - ${lang}`];
-      } else if (decade === '2000s') {
+      } else if (intent.decade === '2000s') {
         targetedQueries = [`2000s ${lang} Hits`, `2000s ${lang} Melodies`, `Harris Jayaraj 2000s ${lang}`];
         playlistQueries = [`2000s Hits - ${lang}`];
-      } else if (decade === '70s') {
+      } else if (intent.decade === '70s') {
         targetedQueries = [`70s ${lang} Hits`, `70s ${lang} Melodies`];
         playlistQueries = [`70s - ${lang}`];
       }
@@ -686,35 +694,22 @@ app.get('/api/search', async (req, res) => {
         Promise.all(pPromises),
         Promise.all(songPromises)
       ]);
-
-      allPlaylists.flat().forEach(addSong);
-      allSongs.flat().forEach(addSong);
-
-      if (finalResults.length > 0) {
-        setCache(cacheKey, finalResults, 10 * 60 * 1000);
-        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
-      }
+      candidates.push(...allPlaylists.flat(), ...allSongs.flat());
     }
 
-    // ── 2. KNOWN COMPOSER / SINGER INTENT (e.g. "Deva tamil songs", "Ilaiyaraaja songs") ──
-    const isOmInQuery = /\bom\b/i.test(correctedQuery);
-    const matchedArtist = !isOmInQuery ? KNOWN_ARTISTS.find(a => a.match.test(correctedQuery)) : null;
-    if (matchedArtist) {
+    // ── CASE 3: KNOWN COMPOSER / SINGER INTENT ──
+    if (intent.matchedArtist) {
       const artistPromises = [];
-
-      // Curated Playlists
-      if (matchedArtist.playlists) {
-        for (const pId of matchedArtist.playlists) {
+      if (intent.matchedArtist.playlists) {
+        for (const pId of intent.matchedArtist.playlists) {
           artistPromises.push(fetchSongsFromPlaylist(pId));
         }
       }
-      // Top Songs from Artist Page
-      if (matchedArtist.artistId) {
-        artistPromises.push(fetchSongsFromArtist(matchedArtist.artistId, 25));
+      if (intent.matchedArtist.artistId) {
+        artistPromises.push(fetchSongsFromArtist(intent.matchedArtist.artistId, 25));
       }
-      // Targeted queries
-      if (matchedArtist.queries) {
-        for (const tq of matchedArtist.queries) {
+      if (intent.matchedArtist.queries) {
+        for (const tq of intent.matchedArtist.queries) {
           artistPromises.push((async () => {
             try {
               const res = await requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(tq)}`);
@@ -725,255 +720,129 @@ app.get('/api/search', async (req, res) => {
           })());
         }
       }
-
       const artistResults = await Promise.all(artistPromises);
-      artistResults.flat().forEach(addSong);
-
-      if (finalResults.length > 0) {
-        setCache(cacheKey, finalResults, 10 * 60 * 1000);
-        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
-      }
+      candidates.push(...artistResults.flat());
     }
 
-    // ── 3. GENERIC NEW / TRENDING / YEAR QUERY ──
-    // e.g. "tamil new 2026 moive songs", "new moive songs tamil", "latest tamil songs", "2025 tamil songs"
-    const noStopwords = cleanSearchStopwords(correctedQuery);
-    const coreKeywords = stripSearchLanguage(noStopwords);
-    const coreWithoutYear = coreKeywords.replace(/\b(19\d{2}|20\d{2})\b/g, '').trim();
-
-    const isLatestOrTrending = /\b(new|latest|trending|viral|chartbusters?)\b/i.test(correctedQuery);
-    const isGenericNewOrYearQuery = (!coreWithoutYear || coreWithoutYear.length < 2) && (isLatestOrTrending || year);
-
-    if (isGenericNewOrYearQuery) {
+    // ── CASE 4: GENERIC RECENCY / YEAR QUERY (e.g. "tamil new songs", "2026 songs") ──
+    if (intent.isGenericNewOrYear) {
       const queries = [
-        `Latest ${lang} Hits ${year || ''}`,
-        `New ${lang} Songs ${year || ''}`,
-        `Latest ${lang} ${year || ''}`,
-        `Best of ${year || ''} ${lang}`,
+        `Latest ${lang} Hits ${intent.year || ''}`,
+        `New ${lang} Songs ${intent.year || ''}`,
+        `Latest ${lang} ${intent.year || ''}`,
+        `Best of ${intent.year || ''} ${lang}`,
         `${lang} Trending Hits`
       ];
-
       const promises = queries.map(qStr =>
         requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=15&q=${encodeURIComponent(qStr.trim())}`)
       );
       const responses = await Promise.all(promises);
-      responses.forEach(res => {
-        (res?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
-      });
-
-      if (year) {
-        finalResults.sort((a, b) => {
-          const aYear = (a.year === year || a.album?.includes(year)) ? 1 : 0;
-          const bYear = (b.year === year || b.album?.includes(year)) ? 1 : 0;
-          return bYear - aYear;
-        });
-      }
-
-      if (finalResults.length > 0) {
-        setCache(cacheKey, finalResults, 10 * 60 * 1000);
-        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
-      }
+      responses.forEach(r => collectFromResults(r?.results));
     }
 
-    // ── 3.5 OM / DHANUSH OM MOVIE INTENT ──
-    // "OM Chapter 1: Udhiram - The Blood Wood" (2026, Tamil, Dhanush / Sai Abhyankkar)
-    // Singles: "Veezha Veera", "FA FA FA", "Alaakaa Loova", "OM Special Duty", "The Wild Theme", "Senjudare"
-    const isOmMovie = (
-      /\bom\b/i.test(coreWithoutYear) ||
-      (/\bom\b/i.test(correctedQuery) && (/\b(movie|dhanush|chapter|udhiram|sai\s*abhyankkar|2026)\b/i.test(correctedQuery) || coreWithoutYear === 'om'))
+    // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH ──
+    const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
+    const searchTerms = [
+      `${movieTarget} ${lang}`,
+      movieTarget
+    ];
+    if (intent.transliterated && intent.transliterated !== movieTarget) {
+      searchTerms.push(`${intent.transliterated} ${lang}`);
+    }
+
+    const albumPromises = searchTerms.map(st =>
+      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(st)}`)
+    );
+    const songPromises = searchTerms.map(st =>
+      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(st)}`)
     );
 
-    if (isOmMovie) {
-      // These are the EXACT queries that return OM Chapter 1 tracks (confirmed via API testing)
-      const omQueries = [
-        `OM Chapter 1 ${lang}`,
-        `OM Chapter ${lang}`,
-        `OM Udhiram ${lang}`,
-        `Veezha Veera ${lang}`,
-        `FA FA FA ${lang}`,
-        `OM Dhanush`,
-        `Senjudare ${lang}`,
-        `Alaakaa Loova ${lang}`
-      ];
-      const promises = omQueries.map(oq =>
-        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=10&q=${encodeURIComponent(oq)}`)
-      );
-      const responses = await Promise.all(promises);
-
-      // STRICT filter: ONLY accept songs from "OM Chapter 1: Udhiram" album (2026)
-      // This prevents KGF Chapter 1, Kantara Chapter 1, Mafia etc from leaking in
-      const isOmChapter1Song = (s) => {
-        if (!s) return false;
-        const albumL = (s.album || '').toLowerCase();
-        const titleL = (s.title || '').toLowerCase();
-        return (
-          albumL.includes('udhiram') ||
-          albumL.includes('om chapter') ||
-          albumL.includes('blood wood') ||
-          titleL.includes('udhiram') ||
-          titleL.includes('blood wood') ||
-          (albumL.includes('om chapter') && s.year === '2026')
-        );
-      };
-
-      responses.forEach(response => {
-        (response?.results || []).map(formatSongItem).filter(s => s && s.playUrl && isOmChapter1Song(s)).forEach(addSong);
-      });
-
-      if (finalResults.length > 0) {
-        // Sort: 2026 OM Chapter 1 tracks always come first
-        finalResults.sort((a, b) => {
-          const aScore = (a.year === '2026') ? 2 : (a.year === '2025' ? 1 : 0);
-          const bScore = (b.year === '2026') ? 2 : (b.year === '2025' ? 1 : 0);
-          return bScore - aScore;
-        });
-        setCache(cacheKey, finalResults, 10 * 60 * 1000);
-        return res.json({ success: true, query: q, total: finalResults.length, results: finalResults });
-      }
-    }
-
-    // ── 4. SPECIFIC MOVIE NAME + LANGUAGE / SOUNDTRACK SEARCH ──
-    // e.g. "om new moive song tamil", "om movie song tamil", "Leo Tamil song", "Amaran Tamil song"
-    const movieTarget = coreWithoutYear || coreKeywords || noStopwords || correctedQuery;
-
-    // Search albums & direct songs in parallel
-    const [albumData, songData1, songData2] = await Promise.all([
-      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=10&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`),
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`),
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=15&q=${encodeURIComponent(movieTarget)}`)
+    const [albumResultsArray, songResultsArray] = await Promise.all([
+      Promise.all(albumPromises),
+      Promise.all(songPromises)
     ]);
 
-    const albumList = albumData.results || [];
-    let songsFromAlbums = [];
+    songResultsArray.forEach(sda => collectFromResults(sda?.results));
 
-    // Strictly filter albums matching the movie title and target language
+    // Process matched albums and fetch full tracklists
     const cleanMovieLower = movieTarget.toLowerCase();
-    const matchingAlbums = albumList.filter(alb => {
+    const allAlbums = albumResultsArray.flatMap(a => a?.results || []);
+    const matchingAlbums = allAlbums.filter(alb => {
       const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
       const albTitle = (alb.title || '').toLowerCase();
-      const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle);
+      const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle) || stringSimilarity(cleanMovieLower, albTitle) >= 0.7;
       if (!isMatch) return false;
-      // Strict language match when language is specified
-      if (explicitLanguageRequested) {
-        if (albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
-          return false;
-        }
+      if (intent.explicitLanguageRequested && albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
+        return false;
       }
       return true;
     });
 
-    const targetAlbums = matchingAlbums.length > 0 ? matchingAlbums.slice(0, 3) : [];
-
+    const targetAlbums = matchingAlbums.slice(0, 3);
     if (targetAlbums.length > 0) {
       const albumDetailPromises = targetAlbums.map(alb => {
         const albId = alb.id || alb.albumid;
         return fetchSongsFromAlbum(albId, alb);
       });
       const albumSongsArrays = await Promise.all(albumDetailPromises);
-      albumSongsArrays.forEach(songs => {
-        songsFromAlbums.push(...songs);
-      });
+      albumSongsArrays.forEach(songs => candidates.push(...songs));
     }
 
-    // Raw songs from direct song search
-    const rawSongs1 = (songData1.results || []).map(formatSongItem).filter(s => s && s.playUrl);
-    const rawSongs2 = (songData2.results || []).map(formatSongItem).filter(s => s && s.playUrl);
-
-    // Prioritize movie album tracklist first, then direct song matches
-    songsFromAlbums.forEach(addSong);
-    rawSongs1.forEach(addSong);
-    rawSongs2.forEach(addSong);
-
-    // Sort by year / recency if specific year or trending/new was requested
-    if (year) {
-      finalResults.sort((a, b) => {
-        const aYr = (a.year === year || a.album?.includes(year) || a.title?.includes(year)) ? 1 : 0;
-        const bYr = (b.year === year || b.album?.includes(year) || b.title?.includes(year)) ? 1 : 0;
-        return bYr - aYr;
-      });
-    } else if (isLatestOrTrending) {
-      finalResults.sort((a, b) => {
-        const aScore = (a.year === '2026' ? 3 : (a.year === '2025' ? 2 : (a.year === '2024' ? 1 : 0)));
-        const bScore = (b.year === '2026' ? 3 : (b.year === '2025' ? 2 : (b.year === '2024' ? 1 : 0)));
-        return bScore - aScore;
-      });
+    // ── CASE 6: DEEP FALLBACK CASCADE (if candidates are scarce) ──
+    if (candidates.length === 0) {
+      const fallbackCandidates = [intent.coreKeywords, intent.suffixStripped, intent.corrected, q].filter(Boolean);
+      for (const fc of fallbackCandidates) {
+        if (fc === movieTarget) continue;
+        const fbRes = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(`${fc} ${lang}`)}`);
+        collectFromResults(fbRes?.results);
+        if (candidates.length > 0) break;
+      }
     }
 
-    // ── 5. DYNAMIC ARTIST SEARCH (for unmapped artists) ──
-    if (finalResults.length === 0 || /artist|singer|composer/i.test(q)) {
+    // Autocomplete fallback
+    if (candidates.length === 0) {
       try {
-        const artistSearch = await requestSaavn(`__call=search.getArtistResults&_format=json&cc=in&p=1&n=3&q=${encodeURIComponent(movieTarget)}`);
-        if (artistSearch?.results && artistSearch.results.length > 0) {
-          const topArtist = artistSearch.results[0];
-          const artistId = topArtist.id || topArtist.artistid;
-          if (artistId) {
-            const artistSongs = await fetchSongsFromArtist(artistId, 20);
-            artistSongs.forEach(addSong);
-          }
+        const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(movieTarget)}`);
+        if (autoData?.songs?.data) {
+          collectFromResults(autoData.songs.data.slice(0, 10));
         }
       } catch (e) {}
     }
 
-    // ── 6. DEEP FALLBACK CASCADE ──
-    if (finalResults.length === 0) {
-      const candidateQueries = Array.from(new Set([
-        coreKeywords,
-        noStopwords,
-        correctedQuery,
-        q
-      ])).filter(s => s && s.length >= 1);
-
-      for (const candidate of candidateQueries) {
-        if (candidate === movieTarget) continue;
-        
-        // Try direct song search
-        const fbSongData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(`${candidate} ${lang}`)}`);
-        if (fbSongData?.results) {
-          fbSongData.results.map(formatSongItem).forEach(addSong);
-        }
-
-        if (finalResults.length > 0) break;
-      }
-    }
-
-    // ── 7. AUTOCOMPLETE FUZZY FALLBACK ──
-    if (finalResults.length === 0) {
-      try {
-        const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(movieTarget)}`);
-        if (autoData?.songs?.data && autoData.songs.data.length > 0) {
-          for (const rawS of autoData.songs.data.slice(0, 10)) {
-            const fmt = formatSongItem(rawS);
-            if (fmt && fmt.playUrl) addSong(fmt);
-          }
-        }
-      } catch (e) {
-        console.warn('Autocomplete fallback warning:', e.message);
-      }
-    }
-
-    // ── 8. LOCAL CURATED CACHE FALLBACK (Strict Language Enforced) ──
-    if (finalResults.length === 0 && cachedCuratedShelves) {
-      const searchTerms = q.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+    // Curated local shelves fallback
+    if (candidates.length === 0 && cachedCuratedShelves) {
+      const words = q.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
       for (const shelf of cachedCuratedShelves) {
         for (const s of (shelf.songs || [])) {
-          const match = searchTerms.some(term => 
-            s.title.toLowerCase().includes(term) || 
+          const match = words.some(term =>
+            s.title.toLowerCase().includes(term) ||
             (s.album && s.album.toLowerCase().includes(term)) ||
             (s.artist && s.artist.toLowerCase().includes(term))
           );
-          if (match) addSong(s); // isLanguageMatch will prevent other languages from leaking in
+          if (match) candidates.push(s);
         }
       }
     }
 
-    // Cache results for 10 minutes
-    setCache(cacheKey, finalResults, 10 * 60 * 1000);
+    // ── STEP D & E: DEDUPLICATE, SCORE, RANK & GROUP ──
+    const groupedData = deduplicateAndGroup(candidates, intent);
+
+    const responsePayload = {
+      query: q,
+      total: groupedData.songs.length,
+      topMatch: groupedData.topMatch,
+      results: groupedData.songs,
+      albums: groupedData.albums,
+      noiseCount: groupedData.noise.length,
+      noise: groupedData.noise
+    };
+
+    // Cache popular query for 6 hours
+    setCache(cacheKey, responsePayload, 6 * 60 * 60 * 1000);
 
     res.json({
       success: true,
-      query: q,
-      total: finalResults.length,
-      results: finalResults
+      ...responsePayload
     });
   } catch (error) {
     console.error('Search endpoint error:', error);
