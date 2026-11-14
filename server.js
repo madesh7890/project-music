@@ -552,6 +552,15 @@ const KNOWN_ARTISTS = [
 
 // Common Indian music query corrections / phonetic mappings
 const SEARCH_CORRECTIONS = [
+  { pattern: /\bmoives?\b/gi, replacement: 'movie' },
+  { pattern: /\bmuvie\b/gi, replacement: 'movie' },
+  { pattern: /\bvedio\b/gi, replacement: 'video' },
+  { pattern: /\bpaatu\b/gi, replacement: 'paattu' },
+  { pattern: /\bpattu\b/gi, replacement: 'paattu' },
+  { pattern: /\bpadal\b/gi, replacement: 'paadal' },
+  { pattern: /\bpadalgal\b/gi, replacement: 'paadalgal' },
+  { pattern: /\bpaatugal\b/gi, replacement: 'paattugal' },
+  { pattern: /\btreanding\b/gi, replacement: 'trending' },
   { pattern: /\b(?:4|four)\s*(?:studios?|studio)\b/gi, replacement: '4 students' },
   { pattern: /\bvetaiyan\b/gi, replacement: 'vettaiyan' },
   { pattern: /\bthuppaki\b/gi, replacement: 'thuppakki' },
@@ -590,16 +599,35 @@ app.get('/api/search', async (req, res) => {
       return res.json({ success: true, query: q, cached: true, results: cachedRes, total: cachedRes.length });
     }
 
-    const lang = detectLanguage(q, language || 'tamil');
-    const year = detectYear(q);
-    const decade = detectDecade(q);
+    const correctedQuery = applySearchCorrections(q);
+    const lang = detectLanguage(correctedQuery, language || 'tamil');
+    const year = detectYear(correctedQuery);
+    const decade = detectDecade(correctedQuery);
+
+    const explicitLanguageRequested = Boolean(
+      language || correctedQuery.match(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i)
+    );
 
     const finalResults = [];
     const seenTitles = new Set();
     const seenIds = new Set();
 
+    function isLanguageMatch(song) {
+      if (!explicitLanguageRequested) return true;
+      if (!song) return false;
+      const sLang = (song.language || '').toLowerCase();
+      if (sLang === lang) return true;
+      const t = (song.title || '').toLowerCase();
+      const a = (song.album || '').toLowerCase();
+      if (t.includes(`(${lang})`) || t.includes(`[${lang}]`) || a.includes(`(${lang})`) || a.includes(`[${lang}]`)) {
+        return true;
+      }
+      return false;
+    }
+
     const addSong = (song) => {
       if (!song || !song.id || !song.playUrl) return;
+      if (!isLanguageMatch(song)) return; // Strictly enforce requested language!
       const norm = normalizeSongTitle(song.title);
       if (!seenTitles.has(norm) && !seenIds.has(song.id)) {
         seenTitles.add(norm);
@@ -661,7 +689,7 @@ app.get('/api/search', async (req, res) => {
     }
 
     // ── 2. KNOWN COMPOSER / SINGER INTENT (e.g. "Deva tamil songs", "Ilaiyaraaja songs") ──
-    const matchedArtist = KNOWN_ARTISTS.find(a => a.match.test(q));
+    const matchedArtist = KNOWN_ARTISTS.find(a => a.match.test(correctedQuery));
     if (matchedArtist) {
       const artistPromises = [];
 
@@ -698,36 +726,39 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // ── 3. YEAR INTENT (e.g. "2025 tamil songs", "2024 hits", "2023 songs") ──
-    const noStopwords = cleanSearchStopwords(q);
+    // ── 3. GENERIC NEW / TRENDING / YEAR QUERY ──
+    // e.g. "tamil new 2026 moive songs", "new moive songs tamil", "latest tamil songs", "2025 tamil songs"
+    const noStopwords = cleanSearchStopwords(correctedQuery);
     const coreKeywords = stripSearchLanguage(noStopwords);
-    if (year && (!coreKeywords || coreKeywords === year || /^(songs?|hits?|padam|paattu)$/i.test(coreKeywords))) {
-      const yearQueries = [
-        `Best of ${year} ${lang}`,
-        `${year} ${lang} Hits`,
-        `Latest ${lang} Releases ${year}`
+    const coreWithoutYear = coreKeywords.replace(/\b(19\d{2}|20\d{2})\b/g, '').trim();
+
+    const isLatestOrTrending = /\b(new|latest|trending|viral|chartbusters?)\b/i.test(correctedQuery);
+    const isGenericNewOrYearQuery = (!coreWithoutYear || coreWithoutYear.length < 2) && (isLatestOrTrending || year);
+
+    if (isGenericNewOrYearQuery) {
+      const queries = [
+        `Latest ${lang} Hits ${year || ''}`,
+        `New ${lang} Songs ${year || ''}`,
+        `Latest ${lang} ${year || ''}`,
+        `Best of ${year || ''} ${lang}`,
+        `${lang} Trending Hits`
       ];
 
-      const [albRes, sRes] = await Promise.all([
-        requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=4&q=${encodeURIComponent(`Best of ${year} ${lang}`)}`),
-        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=24&q=${encodeURIComponent(`${year} ${lang} Hits`)}`)
-      ]);
-
-      if (albRes?.results && albRes.results.length > 0) {
-        for (const alb of albRes.results.slice(0, 2)) {
-          const albSongs = await fetchSongsFromAlbum(alb.id || alb.albumid, alb);
-          albSongs.forEach(addSong);
-        }
-      }
-
-      (sRes?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
-
-      // Prioritize songs from that exact year
-      finalResults.sort((a, b) => {
-        const aYear = (a.year === year || a.album?.includes(year)) ? 1 : 0;
-        const bYear = (b.year === year || b.album?.includes(year)) ? 1 : 0;
-        return bYear - aYear;
+      const promises = queries.map(qStr =>
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=15&q=${encodeURIComponent(qStr.trim())}`)
+      );
+      const responses = await Promise.all(promises);
+      responses.forEach(res => {
+        (res?.results || []).map(formatSongItem).filter(s => s && s.playUrl).forEach(addSong);
       });
+
+      if (year) {
+        finalResults.sort((a, b) => {
+          const aYear = (a.year === year || a.album?.includes(year)) ? 1 : 0;
+          const bYear = (b.year === year || b.album?.includes(year)) ? 1 : 0;
+          return bYear - aYear;
+        });
+      }
 
       if (finalResults.length > 0) {
         setCache(cacheKey, finalResults, 10 * 60 * 1000);
@@ -735,38 +766,37 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // ── 4. MOVIE NAME + LANGUAGE / GENERAL SONG SEARCH ──
-    // e.g. "Leo Tamil song", "Amaran Tamil song", "Pushpa 2 Telugu song", "Aavesham Malayalam"
-    const correctedRaw = applySearchCorrections(q);
-    const correctedNoStopwords = applySearchCorrections(noStopwords);
-    const correctedCore = applySearchCorrections(coreKeywords);
+    // ── 4. SPECIFIC MOVIE NAME + LANGUAGE / SOUNDTRACK SEARCH ──
+    // e.g. "om new moive song tamil", "om movie song tamil", "Leo Tamil song", "Amaran Tamil song"
+    const movieTarget = coreWithoutYear || coreKeywords || noStopwords || correctedQuery;
 
-    const movieTarget = correctedCore || coreKeywords || correctedNoStopwords || noStopwords || correctedRaw || q;
-
-    // Search both:
-    // 1) Album search for Movie Soundtrack
-    // 2) Songs direct search
-    const [albumData, songData] = await Promise.all([
-      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(movieTarget)}`),
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`)
+    // Search albums & direct songs in parallel
+    const [albumData, songData1, songData2] = await Promise.all([
+      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=10&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`),
+      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(`${movieTarget} ${lang}`)}`),
+      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=15&q=${encodeURIComponent(movieTarget)}`)
     ]);
 
     const albumList = albumData.results || [];
     let songsFromAlbums = [];
 
-    // Filter albums matching the movie title and target language
+    // Strictly filter albums matching the movie title and target language
     const cleanMovieLower = movieTarget.toLowerCase();
     const matchingAlbums = albumList.filter(alb => {
       const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
       const albTitle = (alb.title || '').toLowerCase();
       const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle);
       if (!isMatch) return false;
-      // If language specified, prioritize matching language
-      if (lang && albLang && albLang !== lang) return false;
+      // Strict language match when language is specified
+      if (explicitLanguageRequested) {
+        if (albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
+          return false;
+        }
+      }
       return true;
     });
 
-    const targetAlbums = matchingAlbums.length > 0 ? matchingAlbums.slice(0, 3) : albumList.slice(0, 2);
+    const targetAlbums = matchingAlbums.length > 0 ? matchingAlbums.slice(0, 3) : [];
 
     if (targetAlbums.length > 0) {
       const albumDetailPromises = targetAlbums.map(alb => {
@@ -779,14 +809,14 @@ app.get('/api/search', async (req, res) => {
       });
     }
 
-    // Direct songs
-    const rawSongs = (songData.results || [])
-      .map(formatSongItem)
-      .filter(s => s && s.playUrl);
+    // Raw songs from direct song search
+    const rawSongs1 = (songData1.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+    const rawSongs2 = (songData2.results || []).map(formatSongItem).filter(s => s && s.playUrl);
 
     // Prioritize movie album tracklist first, then direct song matches
     songsFromAlbums.forEach(addSong);
-    rawSongs.forEach(addSong);
+    rawSongs1.forEach(addSong);
+    rawSongs2.forEach(addSong);
 
     // ── 5. DYNAMIC ARTIST SEARCH (for unmapped artists) ──
     if (finalResults.length === 0 || /artist|singer|composer/i.test(q)) {
@@ -806,33 +836,19 @@ app.get('/api/search', async (req, res) => {
     // ── 6. DEEP FALLBACK CASCADE ──
     if (finalResults.length === 0) {
       const candidateQueries = Array.from(new Set([
-        correctedCore,
-        correctedNoStopwords,
         coreKeywords,
         noStopwords,
-        correctedRaw,
+        correctedQuery,
         q
       ])).filter(s => s && s.length >= 1);
 
       for (const candidate of candidateQueries) {
         if (candidate === movieTarget) continue;
         
-        // Try album search
-        const fbAlbumData = await requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=4&q=${encodeURIComponent(candidate)}`);
-        if (fbAlbumData?.results && fbAlbumData.results.length > 0) {
-          for (const alb of fbAlbumData.results.slice(0, 2)) {
-            const albId = alb.id || alb.albumid;
-            const songs = await fetchSongsFromAlbum(albId, alb);
-            songs.forEach(addSong);
-          }
-        }
-
         // Try direct song search
-        if (finalResults.length === 0) {
-          const fbSongData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(candidate)}`);
-          if (fbSongData?.results) {
-            fbSongData.results.map(formatSongItem).forEach(addSong);
-          }
+        const fbSongData = await requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=${limit}&q=${encodeURIComponent(`${candidate} ${lang}`)}`);
+        if (fbSongData?.results) {
+          fbSongData.results.map(formatSongItem).forEach(addSong);
         }
 
         if (finalResults.length > 0) break;
@@ -841,16 +857,9 @@ app.get('/api/search', async (req, res) => {
 
     // ── 7. AUTOCOMPLETE FUZZY FALLBACK ──
     if (finalResults.length === 0) {
-      const autoQuery = movieTarget;
       try {
-        const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(autoQuery)}`);
-        if (autoData?.albums?.data && autoData.albums.data.length > 0) {
-          for (const alb of autoData.albums.data.slice(0, 2)) {
-            const songs = await fetchSongsFromAlbum(alb.id, alb);
-            songs.forEach(addSong);
-          }
-        }
-        if (finalResults.length === 0 && autoData?.songs?.data && autoData.songs.data.length > 0) {
+        const autoData = await requestSaavn(`__call=autocomplete.get&_format=json&_marker=0&cc=in&query=${encodeURIComponent(movieTarget)}`);
+        if (autoData?.songs?.data && autoData.songs.data.length > 0) {
           for (const rawS of autoData.songs.data.slice(0, 10)) {
             const fmt = formatSongItem(rawS);
             if (fmt && fmt.playUrl) addSong(fmt);
@@ -861,7 +870,7 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // ── 8. LOCAL CURATED CACHE FALLBACK ──
+    // ── 8. LOCAL CURATED CACHE FALLBACK (Strict Language Enforced) ──
     if (finalResults.length === 0 && cachedCuratedShelves) {
       const searchTerms = q.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
       for (const shelf of cachedCuratedShelves) {
@@ -871,7 +880,7 @@ app.get('/api/search', async (req, res) => {
             (s.album && s.album.toLowerCase().includes(term)) ||
             (s.artist && s.artist.toLowerCase().includes(term))
           );
-          if (match) addSong(s);
+          if (match) addSong(s); // isLanguageMatch will prevent other languages from leaking in
         }
       }
     }

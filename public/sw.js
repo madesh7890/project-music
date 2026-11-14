@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v23 — Intelligent Search (Movie, Era, Composer, Year) + Live Trending Engine
-const CACHE_NAME = 'music-app-v23';
+// MUSIC - Service Worker v24 — Strict Language Search Filtering + Sleep Timer Sheet Fix
+const CACHE_NAME = 'music-app-v24';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

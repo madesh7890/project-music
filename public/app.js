@@ -2819,6 +2819,27 @@ class MusicApp {
         this.playerSleepText.style.display = 'none';
       }
     }
+
+    // Update sheet sleep timer text (Screen 3 in now-playing sheet)
+    const sheetSleepStatusText = document.getElementById('sheetSleepStatusText');
+    if (sheetSleepStatusText) {
+      if (timeStr) {
+        sheetSleepStatusText.textContent = `${timeStr} ▾`;
+        sheetSleepStatusText.style.color = '#1ed760';
+        sheetSleepStatusText.style.fontWeight = '700';
+      } else {
+        sheetSleepStatusText.textContent = 'Off ▾';
+        sheetSleepStatusText.style.color = '';
+        sheetSleepStatusText.style.fontWeight = '';
+      }
+    }
+
+    // Update top header badge
+    const headerSleepBadge = document.getElementById('headerSleepBadge');
+    if (headerSleepBadge) {
+      headerSleepBadge.textContent = timeStr ? `💤 ${timeStr}` : 'TIMER';
+    }
+
     if (this.sleepActiveStatus) {
       this.sleepActiveStatus.style.display = (this.sleepTimer || this.sleepStopOnEnd) ? 'flex' : 'none';
     }
@@ -2847,7 +2868,10 @@ class MusicApp {
     const openSleep = () => this.openSleepModal();
     if (this.playerSleepBtn) this.playerSleepBtn.addEventListener('click', openSleep);
     if (this.sheetSleepBtn) this.sheetSleepBtn.addEventListener('click', openSleep);
-    document.getElementById('openSleepModalBtn') && document.getElementById('openSleepModalBtn').addEventListener('click', openSleep);
+    const headerSleepBtn = document.getElementById('openSleepModalBtn');
+    if (headerSleepBtn) headerSleepBtn.addEventListener('click', openSleep);
+    const sheetSleepRow = document.getElementById('sheetSleepRow');
+    if (sheetSleepRow) sheetSleepRow.addEventListener('click', openSleep);
   }
 
   // ==================================================================================

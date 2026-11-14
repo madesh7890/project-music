@@ -3247,14 +3247,14 @@ input:checked + .slider.round:before {
   gap: 8px;
 }
 
-/* 6. Bedtime Sleep Timer Modal */
+/* 6. Bedtime Sleep Timer Modal & Dialogs (z-index 3500 so they open on top of now-playing sheet) */
 .sleep-modal, .speed-modal, .playlist-modal, .share-modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: 200;
+  z-index: 3500 !important;
   display: flex;
   align-items: center;
   justify-content: center;
