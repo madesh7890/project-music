@@ -542,7 +542,10 @@ function deduplicateAndGroup(rawCandidates, intent) {
     if (seenIds.has(s.id)) continue;
     seenIds.add(s.id);
 
-    const score = computeSongRelevanceScore(s, intent);
+    // ── Pinned songs (from curated chartbuster injection) use their forced score ──
+    const score = s._pinnedScore !== undefined
+      ? s._pinnedScore
+      : computeSongRelevanceScore(s, intent);
     scored.push({ ...s, score });
   }
 

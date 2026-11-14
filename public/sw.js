@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v27 — Intelligent Search Pipeline & Clear Result UX (Best Match, Language Chips, Noise Isolation)
-const CACHE_NAME = 'music-app-v29';
+// MUSIC - Service Worker v30 — Spotify/YouTube Style Intelligent Search Engine with Curated 2026 Chartbusters & Pure OM Movie Isolation
+const CACHE_NAME = 'music-app-v30';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

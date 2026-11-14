@@ -41,6 +41,21 @@ try {
   console.warn('Lyrics DB preload warning:', e.message);
 }
 
+// Preloaded 2026 Chartbusters & OM Chapter 1 Songs
+let preloaded2026Chartbusters = [];
+let preloadedOmTracks = [];
+try {
+  const cbPath = path.join(__dirname, 'chartbusters_2026.json');
+  if (fs.existsSync(cbPath)) {
+    const cbData = JSON.parse(fs.readFileSync(cbPath, 'utf8'));
+    preloaded2026Chartbusters = cbData.chartbusters2026 || [];
+    preloadedOmTracks = cbData.omChapter1Songs || [];
+    console.log(`🔥 Preloaded ${preloaded2026Chartbusters.length} 2026 chartbusters & ${preloadedOmTracks.length} OM movie tracks`);
+  }
+} catch (e) {
+  console.warn('Chartbusters 2026 preload warning:', e.message);
+}
+
 // ==========================================
 // AUTH SYSTEM – File-based user store
 // ==========================================
@@ -634,19 +649,37 @@ app.get('/api/search', async (req, res) => {
     // ── CASE 1: OM MOVIE / DHANUSH OM INTENT ──
     // "OM Chapter 1: Udhiram - The Blood Wood" (2026, Tamil, Dhanush / Sai Abhyankkar)
     if (intent.isOmMovie) {
+      // 1. Instantly inject preloaded OM Chapter 1 tracks
+      if (preloadedOmTracks && preloadedOmTracks.length > 0) {
+        preloadedOmTracks.forEach((t, i) => {
+          candidates.push({ ...t, _pinnedScore: 5000 - (i * 50), _pinned: true });
+        });
+      }
+      // Also inject OM tracks from preloaded chartbusters (Veezha Veera, FA FA FA)
+      if (preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0) {
+        preloaded2026Chartbusters.forEach(t => {
+          const alb = (t.album || '').toLowerCase();
+          const sng = (t.title || '').toLowerCase();
+          if (alb.includes('udhiram') || alb.includes('blood wood') || alb.includes('om chapter') || sng.includes('veezha veera') || sng.includes('fa fa fa')) {
+            if (!candidates.some(c => c.id === t.id)) {
+              candidates.push({ ...t, _pinnedScore: 4950, _pinned: true });
+            }
+          }
+        });
+      }
+
+      // 2. Query live Saavn specifically for OM Chapter 1 singles & albums
       const omQueries = [
         `OM Chapter 1 ${lang}`,
-        `OM Chapter ${lang}`,
-        `OM Udhiram ${lang}`,
         `Veezha Veera ${lang}`,
         `FA FA FA ${lang}`,
         `OM Special Duty ${lang}`,
-        `OM Dhanush`,
+        `OM Udhiram ${lang}`,
         `Senjudare ${lang}`,
         `Alaakaa Loova ${lang}`
       ];
       const promises = omQueries.map(oq =>
-        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=12&q=${encodeURIComponent(oq)}`)
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=10&q=${encodeURIComponent(oq)}`)
       );
       const responses = await Promise.all(promises);
       responses.forEach(r => collectFromResults(r?.results));
@@ -726,119 +759,80 @@ app.get('/api/search', async (req, res) => {
 
     // ── CASE 4: GENERIC RECENCY / YEAR QUERY (e.g. "tamil new songs", "2026 songs") ──
     if (intent.isGenericNewOrYear) {
-      // Generic trending queries
+      // 1. Immediately inject the 14 viral 2026 chartbusters in exact YouTube ranking order (only for 2026 / latest queries)
+      if ((!intent.year || intent.year === '2026') && preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0) {
+        preloaded2026Chartbusters.forEach((t, idx) => {
+          candidates.push({
+            ...t,
+            _pinnedScore: 6000 - (idx * 100),
+            _pinned: true
+          });
+        });
+      }
+
+      // 2. Also query generic trending Tamil songs to populate depth
       const genericQueries = [
         `Latest ${lang} Hits ${intent.year || ''}`,
         `New ${lang} Songs ${intent.year || ''}`,
-        `Latest ${lang} ${intent.year || ''}`,
-        `Best of ${intent.year || ''} ${lang}`,
-        `${lang} Trending Hits`
+        `${lang} Trending Hits 2026`,
+        `Best of ${intent.year || '2026'} ${lang}`
       ];
-
-      // ── Curated 2026 Tamil chartbuster targeted queries ──
-      // These ensure the viral trending Tamil songs appear in results
-      // when searching "new movie songs 2026 tamil" / "tamil new songs" / "latest tamil 2026"
-      const curatedChartbusters2026 = [
-        // OM Chapter 1: Udhiram - The Blood Wood (Dhanush, Mammootty, Sai Abhyankkar)
-        'Veezha Veera OM Chapter 1 Tamil',
-        'FA FA FA OM Chapter 1 Dhanush Tamil',
-        'OM Chapter 1 Udhiram Tamil Songs',
-        'OM Udhiram Blood Wood Tamil 2026',
-        // Jailer 2 (Rajinikanth, Anirudh, Nelson)
-        'Ala Bolelo Jailer 2 Rajinikanth Anirudh Tamil',
-        'Putaapu Gang Jailer 2 Anirudh Tamil',
-        // Rathinamo - Tamil Indie (Saurav Srisan / Tanisha Gnanavel)
-        'Rathinamo Saurav Srisan Tamil Indie',
-        'Rathinamo Female Version Tamil',
-        // Pattampoochi - Vishwanath and Sons (Suriya, GV Prakash)
-        'Pattampoochi Vishwanath and Sons Suriya GV Prakash Tamil',
-        // Vaama Vaama - Idhayam Murali (Dhanush, Thaman)
-        'Vaama Vaama Idhayam Murali Dhanush Thaman Tamil',
-        // Ooroda Oththa Don - Baththa (Vijay Sethupathi, Sai Abhyankkar)
-        'Ooroda Oththa Don Baththa Vijay Sethupathi Tamil',
-        // Aeroplane - SCENE (Suriya, Sushin Shyam)
-        'Aeroplane SCENE Suriya Sushin Shyam Tamil',
-        // Usure Needhan Pulla - MANDAADI (Soori, GV Prakash)
-        'Usure Needhan Pulla Mandaadi Soori GV Prakash Tamil',
-        // KALYANI (Shreya Ghoshal, ARJN)
-        'Kalyani Shreya Ghoshal ARJN Tamil',
-        // Kalyana Virundhu - DOROTHY (Ilaiyaraaja, Karthik Subbaraj)
-        'Kalyana Virundhu Dorothy Ilaiyaraaja Tamil',
-        // Athis Brothers (Slim Lazer YD)
-        'Athis Brothers Slim Lazer YD Kash Villanz Tamil'
-      ];
-
-      const allQueries = [...genericQueries, ...curatedChartbusters2026];
-      const promises = allQueries.map(qStr =>
-        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=10&q=${encodeURIComponent(qStr.trim())}`)
+      const genericResponses = await Promise.all(
+        genericQueries.map(qStr =>
+          requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=15&q=${encodeURIComponent(qStr.trim())}`)
+        )
       );
-      const responses = await Promise.all(promises);
-      responses.forEach(r => collectFromResults(r?.results));
+      genericResponses.forEach(r => collectFromResults(r?.results));
+    }
 
-      // ── Also fetch OM Chapter 1 album tracklist directly to guarantee all songs appear ──
-      // Search for OM album and fetch full tracklist
-      try {
-        const omAlbumSearch = await requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=5&q=${encodeURIComponent('OM Chapter 1 Udhiram Tamil')}`);
-        const omAlbums = omAlbumSearch?.results || [];
-        const omAlbum = omAlbums.find(a => {
-          const t = (a.title || '').toLowerCase();
-          return t.includes('udhiram') || t.includes('om chapter') || t.includes('blood wood');
-        });
-        if (omAlbum) {
-          const omAlbumSongs = await fetchSongsFromAlbum(omAlbum.id || omAlbum.albumid, omAlbum);
-          candidates.push(...omAlbumSongs);
+    // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH (Only when not generic 2026 query and not OM movie) ──
+    if (!intent.isGenericNewOrYear && !intent.isOmMovie) {
+      const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
+      const searchTerms = [
+        `${movieTarget} ${lang}`,
+        movieTarget
+      ];
+      if (intent.transliterated && intent.transliterated !== movieTarget) {
+        searchTerms.push(`${intent.transliterated} ${lang}`);
+      }
+
+      const albumPromises = searchTerms.map(st =>
+        requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(st)}`)
+      );
+      const songPromises = searchTerms.map(st =>
+        requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(st)}`)
+      );
+
+      const [albumResultsArray, songResultsArray] = await Promise.all([
+        Promise.all(albumPromises),
+        Promise.all(songPromises)
+      ]);
+
+      songResultsArray.forEach(sda => collectFromResults(sda?.results));
+
+      // Process matched albums and fetch full tracklists
+      const cleanMovieLower = movieTarget.toLowerCase();
+      const allAlbums = albumResultsArray.flatMap(a => a?.results || []);
+      const matchingAlbums = allAlbums.filter(alb => {
+        const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
+        const albTitle = (alb.title || '').toLowerCase();
+        const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle) || stringSimilarity(cleanMovieLower, albTitle) >= 0.7;
+        if (!isMatch) return false;
+        if (intent.explicitLanguageRequested && albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
+          return false;
         }
-      } catch(e) {
-        // silent — curated song queries above already cover OM songs
-      }
-    }
-
-    // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH ──
-    const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
-    const searchTerms = [
-      `${movieTarget} ${lang}`,
-      movieTarget
-    ];
-    if (intent.transliterated && intent.transliterated !== movieTarget) {
-      searchTerms.push(`${intent.transliterated} ${lang}`);
-    }
-
-    const albumPromises = searchTerms.map(st =>
-      requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(st)}`)
-    );
-    const songPromises = searchTerms.map(st =>
-      requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(st)}`)
-    );
-
-    const [albumResultsArray, songResultsArray] = await Promise.all([
-      Promise.all(albumPromises),
-      Promise.all(songPromises)
-    ]);
-
-    songResultsArray.forEach(sda => collectFromResults(sda?.results));
-
-    // Process matched albums and fetch full tracklists
-    const cleanMovieLower = movieTarget.toLowerCase();
-    const allAlbums = albumResultsArray.flatMap(a => a?.results || []);
-    const matchingAlbums = allAlbums.filter(alb => {
-      const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
-      const albTitle = (alb.title || '').toLowerCase();
-      const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle) || stringSimilarity(cleanMovieLower, albTitle) >= 0.7;
-      if (!isMatch) return false;
-      if (intent.explicitLanguageRequested && albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
-        return false;
-      }
-      return true;
-    });
-
-    const targetAlbums = matchingAlbums.slice(0, 3);
-    if (targetAlbums.length > 0) {
-      const albumDetailPromises = targetAlbums.map(alb => {
-        const albId = alb.id || alb.albumid;
-        return fetchSongsFromAlbum(albId, alb);
+        return true;
       });
-      const albumSongsArrays = await Promise.all(albumDetailPromises);
-      albumSongsArrays.forEach(songs => candidates.push(...songs));
+
+      const targetAlbums = matchingAlbums.slice(0, 3);
+      if (targetAlbums.length > 0) {
+        const albumDetailPromises = targetAlbums.map(alb => {
+          const albId = alb.id || alb.albumid;
+          return fetchSongsFromAlbum(albId, alb);
+        });
+        const albumSongsArrays = await Promise.all(albumDetailPromises);
+        albumSongsArrays.forEach(songs => candidates.push(...songs));
+      }
     }
 
     // ── CASE 6: DEEP FALLBACK CASCADE (if candidates are scarce) ──
