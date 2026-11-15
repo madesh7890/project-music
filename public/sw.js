@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v30 — Spotify/YouTube Style Intelligent Search Engine with Curated 2026 Chartbusters & Pure OM Movie Isolation
-const CACHE_NAME = 'music-app-v30';
+// MUSIC - Service Worker v31 — Full Movie Soundtrack Pinning Engine & Robust Language Filter
+const CACHE_NAME = 'music-app-v31';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

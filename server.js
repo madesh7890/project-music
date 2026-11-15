@@ -337,11 +337,15 @@ async function fetchSongsFromAlbum(albId, albInfo = null) {
   if (!albId) return [];
   try {
     const details = await requestSaavn(`__call=content.getAlbumDetails&_format=json&cc=in&albumid=${albId}`);
-    if (details && details.songs && Array.isArray(details.songs)) {
+    const songList = details?.songs || details?.list;
+    if (songList && Array.isArray(songList)) {
       const results = [];
-      details.songs.forEach(rawSong => {
+      songList.forEach(rawSong => {
         if (!rawSong.image && albInfo?.image) {
           rawSong.image = albInfo.image;
+        }
+        if (!rawSong.album && (details.title || albInfo?.title)) {
+          rawSong.album = details.title || albInfo.title;
         }
         const fmt = formatSongItem(rawSong);
         if (fmt && fmt.playUrl) {
@@ -613,6 +617,8 @@ const {
   deduplicateAndGroup,
   transliterateTamil,
   phoneticNormalize,
+  normalizeMovieTitle,
+  doesMovieAlbumMatch,
   stringSimilarity
 } = require('./search_engine');
 
@@ -788,16 +794,22 @@ app.get('/api/search', async (req, res) => {
     // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH (Only when not generic 2026 query and not OM movie) ──
     if (!intent.isGenericNewOrYear && !intent.isOmMovie) {
       const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
+      // Strip part numbers (e.g. "bahubali 1" -> also search "bahubali") to catch multi-part franchise albums
+      const strippedNumber = movieTarget.replace(/\b(1|2|3|4|5|part \d+|chapter \d+|vol \d+)\b/gi, '').trim();
+
       const searchTerms = [
         `${movieTarget} ${lang}`,
         movieTarget
       ];
+      if (strippedNumber && strippedNumber !== movieTarget && strippedNumber.length >= 3) {
+        searchTerms.push(`${strippedNumber} ${lang}`);
+      }
       if (intent.transliterated && intent.transliterated !== movieTarget) {
         searchTerms.push(`${intent.transliterated} ${lang}`);
       }
 
       const albumPromises = searchTerms.map(st =>
-        requestSaavn(`__call=search.getAlbumResults&_format=json&_marker=0&cc=in&p=1&n=8&q=${encodeURIComponent(st)}`)
+        requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=10&q=${encodeURIComponent(st)}`)
       );
       const songPromises = searchTerms.map(st =>
         requestSaavn(`__call=search.getResults&_format=json&_marker=0&cc=in&p=${page}&n=${limit}&q=${encodeURIComponent(st)}`)
@@ -810,28 +822,42 @@ app.get('/api/search', async (req, res) => {
 
       songResultsArray.forEach(sda => collectFromResults(sda?.results));
 
-      // Process matched albums and fetch full tracklists
-      const cleanMovieLower = movieTarget.toLowerCase();
+      // Process matched albums and fetch complete tracklists using robust doesMovieAlbumMatch
       const allAlbums = albumResultsArray.flatMap(a => a?.results || []);
+      const seenAlbumIds = new Set();
       const matchingAlbums = allAlbums.filter(alb => {
+        const albId = alb.albumid || alb.id;
+        if (!albId || seenAlbumIds.has(albId)) return false;
+        seenAlbumIds.add(albId);
+
         const albLang = (alb.language || alb.more_info?.language || '').toLowerCase();
-        const albTitle = (alb.title || '').toLowerCase();
-        const isMatch = albTitle.includes(cleanMovieLower) || cleanMovieLower.includes(albTitle) || stringSimilarity(cleanMovieLower, albTitle) >= 0.7;
-        if (!isMatch) return false;
-        if (intent.explicitLanguageRequested && albLang && albLang !== lang && !albTitle.includes(`[${lang}]`) && !albTitle.includes(`(${lang})`)) {
+        const albTitle = alb.title || '';
+
+        // Strict language check if explicit language was requested by user
+        if (intent.explicitLanguageRequested && albLang && albLang !== lang &&
+            !albTitle.toLowerCase().includes(`[${lang}]`) && !albTitle.toLowerCase().includes(`(${lang})`)) {
           return false;
         }
-        return true;
+
+        return doesMovieAlbumMatch(albTitle, movieTarget) || doesMovieAlbumMatch(albTitle, q);
       });
 
+      // Target matched movie albums: fetch complete tracklists!
       const targetAlbums = matchingAlbums.slice(0, 3);
       if (targetAlbums.length > 0) {
         const albumDetailPromises = targetAlbums.map(alb => {
-          const albId = alb.id || alb.albumid;
+          const albId = alb.albumid || alb.id;
           return fetchSongsFromAlbum(albId, alb);
         });
         const albumSongsArrays = await Promise.all(albumDetailPromises);
-        albumSongsArrays.forEach(songs => candidates.push(...songs));
+        albumSongsArrays.forEach((songs, albIdx) => {
+          songs.forEach((s, trackIdx) => {
+            // Pin the complete movie album tracks with top priority so ALL songs of the searched movie appear together in album order!
+            s._pinnedScore = 4800 - (albIdx * 400) - (trackIdx * 10);
+            s._pinned = true;
+            candidates.push(s);
+          });
+        });
       }
     }
 
@@ -1025,13 +1051,13 @@ app.get('/api/shelf/:id', async (req, res) => {
   res.json({ success: true, shelf });
 });
 
-// 3. Trending by Language (Tamil, Malayalam, Telugu, Hindi, English, Retro) - Always Fresh!
+// 3. Trending by Language (Tamil, Malayalam, Telugu, Hindi, English, Retro) - Always Fresh & Resilient!
 app.get('/api/trending', async (req, res) => {
   try {
     const lang = (req.query.language || 'tamil').toLowerCase();
     const cacheKey = `trending_v2_${lang}`;
     const cached = getCache(cacheKey);
-    if (cached) return res.json({ success: true, language: lang, results: cached });
+    if (cached && cached.length > 0) return res.json({ success: true, language: lang, results: cached });
 
     const queryMap = {
       tamil: 'Latest Tamil Hits',
@@ -1043,16 +1069,30 @@ app.get('/api/trending', async (req, res) => {
     };
 
     const q = queryMap[lang] || `Latest ${lang} Hits`;
-    const param = `__call=search.getResults&_format=json&_marker=0&cc=in&p=1&n=28&q=${encodeURIComponent(q)}`;
+    const param = `__call=search.getResults&_format=json&cc=in&p=1&n=28&q=${encodeURIComponent(q)}`;
     const data = await requestSaavn(param);
 
-    const rawList = data.results || [];
-    const formatted = rawList.map(formatSongItem).filter(s => s && s.playUrl);
+    const rawList = data?.results || [];
+    let formatted = rawList.map(formatSongItem).filter(s => s && s.playUrl);
 
-    setCache(cacheKey, formatted, 30 * 60 * 1000);
+    // Resilient Fallback: if Saavn was slow/empty, fall back to preloaded 2026 chartbusters or shelves
+    if (formatted.length === 0) {
+      if (lang === 'tamil' && preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0) {
+        formatted = preloaded2026Chartbusters;
+      } else if (cachedCuratedShelves && cachedCuratedShelves.length > 0) {
+        formatted = cachedCuratedShelves.flatMap(sh => sh.songs || []).slice(0, 25);
+      }
+    }
+
+    if (formatted.length > 0) {
+      setCache(cacheKey, formatted, 30 * 60 * 1000);
+    }
     res.json({ success: true, language: lang, results: formatted });
   } catch (error) {
     console.error('Trending error:', error);
+    if (preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0) {
+      return res.json({ success: true, language: 'tamil', results: preloaded2026Chartbusters });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -2393,6 +2393,12 @@ class MusicApp {
       return;
     }
 
+    // Clear search input if user clicks a language preset tab so header matches input
+    if (this.searchInput) {
+      this.searchInput.value = '';
+      if (this.clearSearchBtn) this.clearSearchBtn.style.display = 'none';
+    }
+
     this.searchLoader.style.display = 'block';
     try {
       const res = await fetch(`/api/trending?language=${encodeURIComponent(lang)}`);
@@ -2409,7 +2415,7 @@ class MusicApp {
           retro: '80s & 90s Vintage Evergreen Hits'
         };
         const title = langNames[lang] || `${lang.toUpperCase()} Songs`;
-        this.renderSearchResults(data.results, title);
+        this.renderSearchResults(data.results, title, data);
       }
     } catch (e) {
       this.searchLoader.style.display = 'none';

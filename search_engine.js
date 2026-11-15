@@ -159,6 +159,40 @@ function stringSimilarity(a, b) {
   return Math.max(0, (maxLen - dist) / maxLen);
 }
 
+// ── ROBUST MOVIE & ALBUM MATCHER ──
+function normalizeMovieTitle(str) {
+  if (!str) return '';
+  return str.toLowerCase()
+    .replace(/\b(the beginning|part 1|chapter 1|first|vol 1|vol\. 1)\b/gi, ' 1 ')
+    .replace(/\b(the conclusion|part 2|chapter 2|second|vol 2|vol\. 2)\b/gi, ' 2 ')
+    .replace(/\b(the rule|part 3|chapter 3|third|vol 3|vol\. 3)\b/gi, ' 3 ')
+    .replace(/\b(tamil|telugu|malayalam|hindi|kannada|english)\b/gi, ' ')
+    .replace(/\b(original motion picture soundtrack|soundtrack|ost|songs?|movie|film|album|paadalgal|paattu|pattu|audio)\b/gi, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function doesMovieAlbumMatch(albumTitle, query) {
+  if (!albumTitle || !query) return false;
+  const normQ = normalizeMovieTitle(query);
+  const normAlb = normalizeMovieTitle(albumTitle);
+
+  const qNum = normQ.match(/\b\d+\b/)?.[0];
+  const albNum = normAlb.match(/\b\d+\b/)?.[0];
+  // If one query specifically specifies part 1 and album is part 2, reject!
+  if (qNum && albNum && qNum !== albNum) return false;
+
+  const phonQ = phoneticNormalize(normQ.replace(/\b\d+\b/g, ''));
+  const phonAlb = phoneticNormalize(normAlb.replace(/\b\d+\b/g, ''));
+
+  if (!phonQ || !phonAlb) return false;
+  if (phonAlb === phonQ) return true;
+  if (phonAlb.includes(phonQ) || phonQ.includes(phonAlb)) return true;
+  if (stringSimilarity(phonQ, phonAlb) >= 0.75) return true;
+  return false;
+}
+
 // ── 3. INTENT DETECTION ENGINE ──
 function detectLanguage(q, fallback = 'tamil') {
   if (!q) return fallback;
@@ -396,9 +430,12 @@ function computeSongRelevanceScore(song, intent) {
     }
   }
 
-  // 2. Movie / Album Match Bonus
-  if (coreQ.length >= 2) {
-    if (phonAlbum === phonCoreQ || rawAlbum === coreQ) {
+  // 2. Movie / Album Match Bonus (Guarantees all songs from searched movie rank together at the top)
+  if (intent.isMovieIntent || coreQ.length >= 2) {
+    const isAlbMovieMatch = doesMovieAlbumMatch(rawAlbum, coreQ) || doesMovieAlbumMatch(rawAlbum, intent.rawQuery);
+    if (isAlbMovieMatch) {
+      score += 260; // HUGE BONUS: Song belongs to the searched movie's album!
+    } else if (phonAlbum === phonCoreQ || rawAlbum === coreQ) {
       score += 70; // Album title exact match!
     } else if (phonAlbum.includes(phonCoreQ) || rawAlbum.includes(coreQ)) {
       score += 45; // Album title contains query
@@ -533,21 +570,26 @@ function decodeHtml(html) {
 // ── 6. DEDUPLICATION & SECTION GROUPING (Step E) ──
 function deduplicateAndGroup(rawCandidates, intent) {
   const seenNormTitles = new Map();
-  const seenIds = new Set();
+  const idMap = new Map();
 
-  // Score all candidates
-  const scored = [];
+  // Score all candidates & keep higher score when duplicate IDs are present
   for (const s of rawCandidates) {
     if (!s || !s.id || !s.playUrl) continue;
-    if (seenIds.has(s.id)) continue;
-    seenIds.add(s.id);
-
-    // ── Pinned songs (from curated chartbuster injection) use their forced score ──
     const score = s._pinnedScore !== undefined
       ? s._pinnedScore
       : computeSongRelevanceScore(s, intent);
-    scored.push({ ...s, score });
+
+    if (idMap.has(s.id)) {
+      const existing = idMap.get(s.id);
+      if (score > existing.score) {
+        idMap.set(s.id, { ...s, score });
+      }
+    } else {
+      idMap.set(s.id, { ...s, score });
+    }
   }
+
+  const scored = Array.from(idMap.values());
 
   // Sort descending by score
   scored.sort((a, b) => b.score - a.score);
@@ -611,6 +653,8 @@ module.exports = {
   stripTamilSuffixes,
   phoneticNormalize,
   normalizeTitle,
+  normalizeMovieTitle,
+  doesMovieAlbumMatch,
   levenshteinDistance,
   stringSimilarity,
   detectLanguage,
