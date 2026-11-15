@@ -98,7 +98,7 @@ function stripTamilSuffixes(str) {
     .trim();
 }
 
-// Phonetic compression for loose matching (kaadhal == kadhal, vaa == va)
+// Phonetic compression for loose matching (kaadhal == kadhal, vaa == va, ghilli == gilli)
 function phoneticNormalize(str) {
   if (!str) return '';
   return str
@@ -108,10 +108,16 @@ function phoneticNormalize(str) {
     .replace(/oo+|uu+/g, 'u')
     .replace(/dh/g, 'th')
     .replace(/zh/g, 'l')
+    .replace(/gh/g, 'g')
+    .replace(/kh/g, 'k')
+    .replace(/bh/g, 'b')
     .replace(/tt/g, 't')
     .replace(/pp/g, 'p')
     .replace(/kk/g, 'k')
     .replace(/ss/g, 's')
+    .replace(/ll/g, 'l')
+    .replace(/mm/g, 'm')
+    .replace(/nn/g, 'n')
     .replace(/[^a-z0-9]/g, '')
     .trim();
 }
