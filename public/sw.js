@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v31 — Full Movie Soundtrack Pinning Engine & Robust Language Filter
-const CACHE_NAME = 'music-app-v31';
+// MUSIC - Service Worker v32 — 6 New Features: MediaSession, 8D Audio, Voice Search, Crossfade, Cinema Mode, Offline IndexedDB
+const CACHE_NAME = 'music-app-v32';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

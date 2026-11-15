@@ -53,6 +53,17 @@ class MusicApp {
     this.activePlaylistId = null;
     this.playlistTargetSong = null;
 
+    // ── NEW FEATURES STATE ──────────────────────────────────────────────────
+    this.is8DAudioActive = false;       // Feature 2: 8D Rotating Audio
+    this.isVocalCutActive = false;      // Feature 2: Karaoke Vocal Remover
+    this.isCrossfadeActive = false;     // Feature 4: Crossfade/Gapless
+    this.crossfadeDuration = 5;         // seconds of overlap
+    this._crossfadeTimeout = null;
+    this._8dPannerRotateId = null;      // RAF ID for 8D rotation
+    this.isCinemaModeActive = false;    // Feature 5: Cinema Mode
+    this.offlineDb = null;              // Feature 6: IndexedDB
+    this._voiceRecognition = null;      // Feature 3: Voice Search
+
     // DSP Audio Engine state
     this.audioCtx = null;
     this.sourceNode = null;
@@ -75,6 +86,9 @@ class MusicApp {
     this.renderSidebarPlaylists();
     this.checkUrlShareParams();
     this.updateAudioEffectsUI();
+    this.initVoiceSearch();
+    this.initOfflineDb();
+    this.initCinemaMode();
 
     // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere
     const unlockAudio = () => {
@@ -831,6 +845,22 @@ class MusicApp {
 
       // Karaoke Highlight (every tick)
       if (this.isKaraokeActive) this.updateKaraokeHighlight();
+
+      // ── Feature 4: Crossfade – pre-load next track when near end ──
+      if (this.isCrossfadeActive && this.audio.duration) {
+        const remaining = this.audio.duration - this.audio.currentTime;
+        if (remaining <= this.crossfadeDuration && remaining > 0 && !this._crossfadeFired) {
+          this._crossfadeFired = true;
+          this._startCrossfadeOut();
+        }
+      } else {
+        this._crossfadeFired = false;
+      }
+
+      // Cinema mode: update lyrics scroll
+      if (this.isCinemaModeActive && this.isKaraokeActive && this.karaokeLyrics.length) {
+        this._updateCinemaLyricsHighlight();
+      }
     });
 
     this.audio.addEventListener('progress', () => {
@@ -1857,6 +1887,19 @@ class MusicApp {
 
     // Re-render queue highlighting
     this.renderQueueDrawer();
+
+    // ── Feature 1: MediaSession API (Lock Screen / Notification Controls) ──
+    this.updateMediaSession(song);
+
+    // ── Feature 4: Crossfade – schedule fade-in on new track ──
+    if (this.isCrossfadeActive) {
+      this._applyCrossfadeIn();
+    }
+
+    // ── Feature 5: Cinema Mode – sync artwork & lyrics ──
+    if (this.isCinemaModeActive) {
+      this._updateCinemaContent(song);
+    }
   }
 
   updateActiveSongCards() {
@@ -3473,6 +3516,559 @@ class MusicApp {
         this.showToast(this.isSmartRadioActive ? '📻 Smart Radio ON – auto-queue enabled' : 'Smart Radio OFF');
       });
     }
+
+    // ── Feature 2: 8D Audio ──
+    const toggle8D = document.getElementById('sheetToggle8D');
+    if (toggle8D) {
+      toggle8D.addEventListener('click', () => this.toggle8DAudio());
+    }
+
+    // ── Feature 2: Vocal Cut (Karaoke instrumental) ──
+    const toggleVocalCut = document.getElementById('sheetToggleVocalCut');
+    if (toggleVocalCut) {
+      toggleVocalCut.addEventListener('click', () => this.toggleVocalCutMode());
+    }
+
+    // ── Feature 4: Crossfade toggle ──
+    const toggleCrossfade = document.getElementById('sheetToggleCrossfade');
+    if (toggleCrossfade) {
+      toggleCrossfade.addEventListener('click', () => this.toggleCrossfade());
+    }
+
+    // ── Feature 5: Cinema Mode ──
+    const cinemaModeBtn = document.getElementById('sheetCinemaMode');
+    if (cinemaModeBtn) {
+      cinemaModeBtn.addEventListener('click', () => this.openCinemaMode());
+    }
+
+    // ── Feature 6: Save Offline ──
+    const saveOfflineBtn = document.getElementById('sheetSaveOffline');
+    if (saveOfflineBtn) {
+      saveOfflineBtn.addEventListener('click', () => this.saveCurrentSongOffline());
+    }
+  }
+
+  // ===========================================================================
+  // FEATURE 1: MediaSession API — Lock Screen & Notification Controls
+  // ===========================================================================
+  updateMediaSession(song) {
+    if (!song || !('mediaSession' in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: song.title || 'Unknown',
+        artist: song.artist || 'Unknown Artist',
+        album: song.album || 'Single',
+        artwork: [
+          { src: song.imageLow || song.image, sizes: '300x300', type: 'image/jpeg' },
+          { src: song.image, sizes: '500x500', type: 'image/jpeg' }
+        ]
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => {
+        this.audio.play();
+        navigator.mediaSession.playbackState = 'playing';
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        this.audio.pause();
+        navigator.mediaSession.playbackState = 'paused';
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => this.playNext());
+      navigator.mediaSession.setActionHandler('previoustrack', () => this.playPrev());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined) {
+          this.audio.currentTime = details.seekTime;
+        }
+      });
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        this.audio.currentTime = Math.min(this.audio.duration, this.audio.currentTime + (details.seekOffset || 10));
+      });
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        this.audio.currentTime = Math.max(0, this.audio.currentTime - (details.seekOffset || 10));
+      });
+      navigator.mediaSession.playbackState = 'playing';
+
+      // Keep position state in sync for lock screen scrubber
+      this.audio.addEventListener('timeupdate', () => {
+        if ('setPositionState' in navigator.mediaSession && this.audio.duration) {
+          try {
+            navigator.mediaSession.setPositionState({
+              duration: this.audio.duration,
+              playbackRate: this.audio.playbackRate || 1,
+              position: this.audio.currentTime
+            });
+          } catch (e) {}
+        }
+      }, { once: false });
+
+    } catch (e) {
+      console.warn('MediaSession update failed:', e);
+    }
+  }
+
+  // ===========================================================================
+  // FEATURE 2a: 8D Rotating Binaural Audio
+  // ===========================================================================
+  toggle8DAudio() {
+    this.is8DAudioActive = !this.is8DAudioActive;
+    const btn = document.getElementById('sheetToggle8D');
+    if (btn) btn.classList.toggle('active', this.is8DAudioActive);
+
+    if (this.is8DAudioActive) {
+      if (!this.isDspInit) this.setupAudioDSP();
+      this.start8DRotation();
+      this.showToast('🌐 8D Audio ON – wear headphones!');
+    } else {
+      this.stop8DRotation();
+      this.showToast('8D Audio OFF');
+    }
+  }
+
+  start8DRotation() {
+    if (!this.audioCtx) return;
+
+    // Create stereo panner if not exists
+    if (!this.panner8D) {
+      this.panner8D = this.audioCtx.createStereoPanner();
+      // Insert before masterGain
+      if (this.masterGain) {
+        // Reconnect: masterGain takes its input from panner8D
+        // We inject panner8D between the existing spatial/dolby paths and masterGain
+        this.panner8D.connect(this.audioCtx.destination);
+        this.masterGain.disconnect(this.audioCtx.destination);
+        this.masterGain.connect(this.panner8D);
+      }
+    }
+
+    let angle = 0;
+    const rotate = () => {
+      if (!this.is8DAudioActive) return;
+      angle = (angle + 1) % 360;
+      const panVal = Math.sin(angle * Math.PI / 180); // -1 to +1
+      if (this.panner8D) this.panner8D.pan.setTargetAtTime(panVal, this.audioCtx.currentTime, 0.05);
+      this._8dPannerRotateId = requestAnimationFrame(rotate);
+    };
+    if (this._8dPannerRotateId) cancelAnimationFrame(this._8dPannerRotateId);
+    rotate();
+  }
+
+  stop8DRotation() {
+    if (this._8dPannerRotateId) {
+      cancelAnimationFrame(this._8dPannerRotateId);
+      this._8dPannerRotateId = null;
+    }
+    // Reset panner to center
+    if (this.panner8D) {
+      this.panner8D.pan.setTargetAtTime(0, this.audioCtx.currentTime, 0.1);
+    }
+  }
+
+  // ===========================================================================
+  // FEATURE 2b: Vocal Cut / Karaoke Instrumental (Center channel null)
+  // ===========================================================================
+  toggleVocalCutMode() {
+    this.isVocalCutActive = !this.isVocalCutActive;
+    const btn = document.getElementById('sheetToggleVocalCut');
+    if (btn) btn.classList.toggle('active', this.isVocalCutActive);
+
+    if (!this.isDspInit) this.setupAudioDSP();
+
+    if (this.isVocalCutActive) {
+      // Apply extreme vocal notch filter: deep cut at 300Hz–3.5kHz (vocal presence band)
+      if (this.vocalFilter) {
+        this.vocalFilter.frequency.value = 1200;
+        this.vocalFilter.Q.value = 0.5;
+        this.vocalFilter.gain.setTargetAtTime(-24, this.audioCtx.currentTime, 0.05);
+      }
+      if (this.vocalDeMudFilter) {
+        this.vocalDeMudFilter.frequency.value = 2800;
+        this.vocalDeMudFilter.Q.value = 0.5;
+        this.vocalDeMudFilter.gain.setTargetAtTime(-18, this.audioCtx.currentTime, 0.05);
+      }
+      this.showToast('🎸 Vocal Cut ON – instrumental/karaoke mode');
+    } else {
+      // Restore normal vocal filters
+      if (this.isVocalClarityActive) {
+        if (this.vocalFilter) {
+          this.vocalFilter.frequency.value = 3100;
+          this.vocalFilter.Q.value = 1.2;
+          this.vocalFilter.gain.setTargetAtTime(6.0, this.audioCtx.currentTime, 0.05);
+        }
+        if (this.vocalDeMudFilter) {
+          this.vocalDeMudFilter.frequency.value = 260;
+          this.vocalDeMudFilter.Q.value = 1.0;
+          this.vocalDeMudFilter.gain.setTargetAtTime(-3.0, this.audioCtx.currentTime, 0.05);
+        }
+      } else {
+        if (this.vocalFilter) this.vocalFilter.gain.setTargetAtTime(0, this.audioCtx.currentTime, 0.05);
+        if (this.vocalDeMudFilter) this.vocalDeMudFilter.gain.setTargetAtTime(0, this.audioCtx.currentTime, 0.05);
+      }
+      this.showToast('Vocal Cut OFF – normal audio restored');
+    }
+  }
+
+  // ===========================================================================
+  // FEATURE 3: Voice Search (Speech Recognition)
+  // ===========================================================================
+  initVoiceSearch() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const voiceBtn = document.getElementById('voiceSearchBtn');
+
+    if (!SpeechRecognition || !voiceBtn) {
+      if (voiceBtn) voiceBtn.style.display = 'none';
+      return;
+    }
+
+    // Show mic button since API is supported
+    voiceBtn.style.display = 'flex';
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'ta-IN'; // Tamil primary; falls back to en-IN if no Tamil
+    recognition.maxAlternatives = 2;
+    this._voiceRecognition = recognition;
+
+    let isListening = false;
+
+    voiceBtn.addEventListener('click', () => {
+      if (isListening) {
+        recognition.stop();
+        return;
+      }
+
+      // Try Tamil first; we'll also try English as alternative
+      try {
+        recognition.lang = 'ta-IN';
+        recognition.start();
+        isListening = true;
+        voiceBtn.classList.add('listening');
+        voiceBtn.title = '🎙️ Listening... speak now';
+        this.showToast('🎙️ Voice Search: Speak now (Tamil or English)...');
+      } catch (e) {
+        this.showToast('🎙️ Voice search not available in this browser');
+      }
+    });
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      if (this.searchInput) {
+        this.searchInput.value = transcript;
+        if (this.clearSearchBtn) this.clearSearchBtn.style.display = 'block';
+        this.performSearch(transcript);
+        this.showToast(`🎙️ Searching: "${transcript}"`);
+      }
+    };
+
+    recognition.onend = () => {
+      isListening = false;
+      voiceBtn.classList.remove('listening');
+      voiceBtn.title = 'Voice Search (Tamil & English)';
+    };
+
+    recognition.onerror = (event) => {
+      isListening = false;
+      voiceBtn.classList.remove('listening');
+      if (event.error === 'no-speech') {
+        this.showToast('🎙️ No speech detected. Try again!');
+      } else if (event.error === 'language-not-supported') {
+        // Retry with English
+        recognition.lang = 'en-IN';
+        try { recognition.start(); isListening = true; voiceBtn.classList.add('listening'); } catch(e) {}
+      } else {
+        this.showToast('🎙️ Voice search failed: ' + event.error);
+      }
+    };
+  }
+
+  // ===========================================================================
+  // FEATURE 4: Crossfade & Gapless Playback
+  // ===========================================================================
+  toggleCrossfade() {
+    this.isCrossfadeActive = !this.isCrossfadeActive;
+    const btn = document.getElementById('sheetToggleCrossfade');
+    if (btn) btn.classList.toggle('active', this.isCrossfadeActive);
+    this._crossfadeFired = false;
+    this.showToast(this.isCrossfadeActive
+      ? `🎚️ Crossfade ON (${this.crossfadeDuration}s smooth transitions)`
+      : 'Crossfade OFF');
+  }
+
+  _startCrossfadeOut() {
+    if (!this.isDspInit || !this.masterGain || !this.audioCtx) return;
+    const dur = this.crossfadeDuration;
+    const now = this.audioCtx.currentTime;
+    this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
+    this.masterGain.gain.linearRampToValueAtTime(0.0, now + dur);
+
+    // Schedule next track after (dur - 0.3)s
+    setTimeout(() => {
+      this.playNext();
+    }, (dur - 0.3) * 1000);
+  }
+
+  _applyCrossfadeIn() {
+    if (!this.isDspInit || !this.masterGain || !this.audioCtx) return;
+    const now = this.audioCtx.currentTime;
+    this.masterGain.gain.setValueAtTime(0.0, now);
+    this.masterGain.gain.linearRampToValueAtTime(0.95, now + this.crossfadeDuration);
+    this._crossfadeFired = false;
+  }
+
+  // ===========================================================================
+  // FEATURE 5: Fullscreen Ambient Cinema Mode
+  // ===========================================================================
+  initCinemaMode() {
+    const closeBtn = document.getElementById('closeCinemaBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.closeCinemaMode());
+    }
+    // ESC key exits cinema
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.isCinemaModeActive) {
+        this.closeCinemaMode();
+      }
+    });
+  }
+
+  openCinemaMode() {
+    if (!this.currentSong) {
+      this.showToast('▶️ Play a song first to enter Cinema Mode!');
+      return;
+    }
+    this.isCinemaModeActive = true;
+    const overlay = document.getElementById('cinemaModeOverlay');
+    if (overlay) overlay.style.display = 'flex';
+
+    this._updateCinemaContent(this.currentSong);
+
+    // Auto-load lyrics for cinema
+    if (this.karaokeLyrics.length === 0 && this.currentSong) {
+      this.loadKaraokeLyrics().then(() => {
+        this._renderCinemaLyrics();
+      });
+    } else {
+      this._renderCinemaLyrics();
+    }
+
+    const btn = document.getElementById('sheetCinemaMode');
+    if (btn) btn.classList.add('active');
+    this.showToast('🎬 Cinema Mode activated! Press ESC to exit');
+  }
+
+  closeCinemaMode() {
+    this.isCinemaModeActive = false;
+    const overlay = document.getElementById('cinemaModeOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const btn = document.getElementById('sheetCinemaMode');
+    if (btn) btn.classList.remove('active');
+  }
+
+  _updateCinemaContent(song) {
+    const cinemaArt = document.getElementById('cinemaArtwork');
+    const cinemaTitle = document.getElementById('cinemaSongTitle');
+    const cinemaArtist = document.getElementById('cinemaSongArtist');
+    const cinemaBg = document.getElementById('cinemaBgCanvas');
+
+    if (cinemaArt) cinemaArt.src = song.image;
+    if (cinemaTitle) cinemaTitle.textContent = song.title;
+    if (cinemaArtist) cinemaArtist.textContent = `${song.artist || ''} ${song.album ? '• ' + song.album : ''}`.trim();
+
+    // Animate ambient background gradient from album art dominant color
+    // We approximate using a rotating hue based on the song ID hash
+    if (cinemaBg && song.id) {
+      const hue = Array.from(song.id).reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+      cinemaBg.style.background = `
+        radial-gradient(ellipse at 20% 30%, hsla(${hue}, 80%, 25%, 0.9), transparent 60%),
+        radial-gradient(ellipse at 80% 70%, hsla(${(hue + 120) % 360}, 70%, 20%, 0.8), transparent 60%),
+        radial-gradient(ellipse at 50% 50%, hsla(${(hue + 240) % 360}, 60%, 15%, 0.7), transparent 70%),
+        #0a0a0f
+      `;
+    }
+
+    // Pulse the rings
+    this._pulseCinemaRings(song);
+  }
+
+  _pulseCinemaRings(song) {
+    const rings = document.getElementById('cinemaRings');
+    if (!rings) return;
+    if (rings._pulseInterval) clearInterval(rings._pulseInterval);
+    let scale = 1;
+    rings._pulseInterval = setInterval(() => {
+      scale = scale === 1 ? 1.08 : 1;
+      rings.style.transform = `scale(${scale})`;
+      rings.style.opacity = scale === 1 ? '0.5' : '0.8';
+    }, 800);
+  }
+
+  _renderCinemaLyrics() {
+    const container = document.getElementById('cinemaLyricsContainer');
+    if (!container || !this.karaokeLyrics.length) return;
+
+    container.innerHTML = '';
+    this.karaokeLyrics.forEach((line, idx) => {
+      const div = document.createElement('div');
+      div.className = 'cinema-lyric-line';
+      div.dataset.idx = idx;
+      div.textContent = line.tamilText || line.tanglishText || '';
+      div.addEventListener('click', () => {
+        if (line.time >= 0) this.audio.currentTime = line.time;
+      });
+      container.appendChild(div);
+    });
+  }
+
+  _updateCinemaLyricsHighlight() {
+    const container = document.getElementById('cinemaLyricsContainer');
+    if (!container) return;
+    const t = this.audio.currentTime;
+    let activeIdx = -1;
+    for (let i = 0; i < this.karaokeLyrics.length; i++) {
+      if (this.karaokeLyrics[i].time <= t) activeIdx = i;
+      else break;
+    }
+    container.querySelectorAll('.cinema-lyric-line').forEach((el, i) => {
+      el.classList.remove('cinema-lyric-active', 'cinema-lyric-past');
+      if (i === activeIdx) {
+        el.classList.add('cinema-lyric-active');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (i < activeIdx) {
+        el.classList.add('cinema-lyric-past');
+      }
+    });
+  }
+
+  // ===========================================================================
+  // FEATURE 6: Offline IndexedDB Song Storage
+  // ===========================================================================
+  async initOfflineDb() {
+    try {
+      this.offlineDb = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('MusicOfflineDB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('songs')) {
+            db.createObjectStore('songs', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => reject(req.error);
+      });
+      console.log('💾 IndexedDB offline store ready');
+    } catch (e) {
+      console.warn('IndexedDB not available:', e);
+      this.offlineDb = null;
+    }
+  }
+
+  async saveCurrentSongOffline() {
+    if (!this.currentSong) {
+      this.showToast('▶️ Play a song first!');
+      return;
+    }
+    if (!this.offlineDb) {
+      this.showToast('❌ Offline storage not available in this browser');
+      return;
+    }
+
+    const song = this.currentSong;
+    const rawUrl = this.getStreamUrlForFormat(song, '720p');
+    if (!rawUrl) {
+      this.showToast('❌ Stream URL not available for offline save');
+      return;
+    }
+
+    // Show offline toaster
+    const toaster = document.getElementById('offlineToaster');
+    const toasterText = document.getElementById('offlineToasterText');
+    const progressFill = document.getElementById('offlineProgressFill');
+    if (toaster) toaster.style.display = 'flex';
+    if (toasterText) toasterText.textContent = `💾 Saving "${song.title}"...`;
+    if (progressFill) progressFill.style.width = '5%';
+
+    try {
+      // Check if already saved
+      const existing = await this._getOfflineSong(song.id);
+      if (existing) {
+        this.showToast(`✅ "${song.title}" already saved offline!`);
+        if (toaster) setTimeout(() => toaster.style.display = 'none', 2000);
+        return;
+      }
+
+      // Animate progress
+      let progress = 5;
+      const progInterval = setInterval(() => {
+        progress = Math.min(progress + 10, 85);
+        if (progressFill) progressFill.style.width = progress + '%';
+      }, 300);
+
+      // Fetch audio blob via proxy
+      const response = await fetch(`/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`);
+      if (!response.ok) throw new Error('Fetch failed');
+      const audioBlob = await response.blob();
+
+      clearInterval(progInterval);
+      if (progressFill) progressFill.style.width = '95%';
+
+      // Store in IndexedDB
+      await this._storeOfflineSong({
+        id: song.id,
+        song: { ...song, streams: null, playUrl: null }, // Strip stream URLs
+        audioBlob,
+        savedAt: Date.now()
+      });
+
+      if (progressFill) progressFill.style.width = '100%';
+      if (toasterText) toasterText.textContent = `✅ "${song.title}" saved offline!`;
+      setTimeout(() => { if (toaster) toaster.style.display = 'none'; }, 2500);
+      this.showToast(`💾 "${song.title}" saved for offline playback!`);
+
+    } catch (err) {
+      console.error('Offline save failed:', err);
+      if (toasterText) toasterText.textContent = `❌ Save failed: ${err.message}`;
+      setTimeout(() => { if (toaster) toaster.style.display = 'none'; }, 3000);
+      this.showToast(`❌ Offline save failed. Check connection.`);
+    }
+  }
+
+  _storeOfflineSong(record) {
+    return new Promise((resolve, reject) => {
+      const tx = this.offlineDb.transaction('songs', 'readwrite');
+      tx.objectStore('songs').put(record);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  _getOfflineSong(id) {
+    return new Promise((resolve, reject) => {
+      const tx = this.offlineDb.transaction('songs', 'readonly');
+      const req = tx.objectStore('songs').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getOfflineSongs() {
+    if (!this.offlineDb) return [];
+    return new Promise((resolve, reject) => {
+      const tx = this.offlineDb.transaction('songs', 'readonly');
+      const req = tx.objectStore('songs').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async playOfflineSong(id) {
+    const record = await this._getOfflineSong(id);
+    if (!record) { this.showToast('Song not saved offline'); return; }
+    const blobUrl = URL.createObjectURL(record.audioBlob);
+    this.audio.src = blobUrl;
+    this.audio.load();
+    this.audio.play();
+    this.currentSong = record.song;
+    this.updateMediaSession(record.song);
+    this.showToast(`💾 Playing offline: "${record.song.title}"`);
   }
 }
 

@@ -155,6 +155,10 @@
               autocomplete="off"
             >
             <div class="search-actions">
+              <!-- Voice Search Mic Button -->
+              <button class="voice-search-btn" id="voiceSearchBtn" title="Voice Search (Tamil &amp; English)" style="display:none;">
+                <svg id="voiceMicIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+              </button>
               <button class="clear-search-btn" id="clearSearchBtn" title="Clear">✕</button>
               <div class="search-loader" id="searchLoader"></div>
             </div>
@@ -667,6 +671,26 @@
           <button class="quick-fx-btn" id="sheetToggleLyrics">
             <span class="quick-fx-icon">🎤</span>
             <span>Karaoke</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetToggle8D">
+            <span class="quick-fx-icon">🌐</span>
+            <span>8D Audio</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetToggleVocalCut">
+            <span class="quick-fx-icon">🎸</span>
+            <span>Vocal Cut</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetToggleCrossfade">
+            <span class="quick-fx-icon">🔀</span>
+            <span>Crossfade</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetSaveOffline">
+            <span class="quick-fx-icon">💾</span>
+            <span>Save Offline</span>
+          </button>
+          <button class="quick-fx-btn" id="sheetCinemaMode">
+            <span class="quick-fx-icon">🎬</span>
+            <span>Cinema</span>
           </button>
         </div>
       </div>
@@ -1383,6 +1407,29 @@
         Sign Out
       </button>
     </div>
+  </div>
+
+  <!-- Cinema Mode Overlay (Fullscreen ambient backdrop with lyrics) -->
+  <div id="cinemaModeOverlay" class="cinema-overlay" style="display:none;">
+    <div id="cinemaBgCanvas" class="cinema-bg"></div>
+    <button class="cinema-close-btn" id="closeCinemaBtn" title="Exit Cinema">✕ Exit Cinema</button>
+    <div class="cinema-content">
+      <div class="cinema-art-wrap">
+        <img id="cinemaArtwork" class="cinema-artwork" src="" alt="">
+        <div class="cinema-ambient-rings" id="cinemaRings"></div>
+      </div>
+      <div class="cinema-info">
+        <div class="cinema-song-title" id="cinemaSongTitle">Song Title</div>
+        <div class="cinema-song-artist" id="cinemaSongArtist">Artist</div>
+        <div class="cinema-lyrics" id="cinemaLyricsContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Offline Songs Manager Toaster (IndexedDB) -->
+  <div id="offlineToaster" class="offline-toaster" style="display:none;">
+    <span id="offlineToasterText">💾 Saving...</span>
+    <div class="offline-progress-bar"><div class="offline-progress-fill" id="offlineProgressFill"></div></div>
   </div>
 
   <!-- App Script -->
