@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v32 — 6 New Features: MediaSession, 8D Audio, Voice Search, Crossfade, Cinema Mode, Offline IndexedDB
-const CACHE_NAME = 'music-app-v32';
+// MUSIC - Service Worker v33 — Deduplicated clean results grid & English voice search
+const CACHE_NAME = 'music-app-v33';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

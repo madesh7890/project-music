@@ -2281,20 +2281,12 @@ class MusicApp {
       });
     }
 
-    // ── 3. Horizontal swipe shelf (top 8 matches) ──
+    // ── 3. Horizontal swipe shelf disabled (prevent duplicate card rows) ──
     const shelfContainer = document.getElementById('searchShelfContainer');
-    const shelfRow = document.getElementById('searchShelfRow');
-    if (shelfContainer && shelfRow) {
-      if (songs.length > 0) {
-        shelfRow.innerHTML = '';
-        songs.slice(0, 8).forEach(song => {
-          const card = this.createSongCard(song, songs);
-          shelfRow.appendChild(card);
-        });
-        shelfContainer.style.display = 'block';
-      } else {
-        shelfContainer.style.display = 'none';
-      }
+    if (shelfContainer) {
+      shelfContainer.style.display = 'none';
+      const shelfRow = document.getElementById('searchShelfRow');
+      if (shelfRow) shelfRow.innerHTML = '';
     }
 
     // ── 4. Wire filter pills (once per new search) ──
@@ -3724,8 +3716,8 @@ class MusicApp {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = 'ta-IN'; // Tamil primary; falls back to en-IN if no Tamil
-    recognition.maxAlternatives = 2;
+    recognition.lang = 'en-US'; // English language only
+    recognition.maxAlternatives = 1;
     this._voiceRecognition = recognition;
 
     let isListening = false;
@@ -3736,14 +3728,13 @@ class MusicApp {
         return;
       }
 
-      // Try Tamil first; we'll also try English as alternative
       try {
-        recognition.lang = 'ta-IN';
+        recognition.lang = 'en-US';
         recognition.start();
         isListening = true;
         voiceBtn.classList.add('listening');
-        voiceBtn.title = '🎙️ Listening... speak now';
-        this.showToast('🎙️ Voice Search: Speak now (Tamil or English)...');
+        voiceBtn.title = '🎙️ Listening... Speak in English';
+        this.showToast('🎙️ Voice Search: Listening... Speak in English');
       } catch (e) {
         this.showToast('🎙️ Voice search not available in this browser');
       }
@@ -3762,7 +3753,7 @@ class MusicApp {
     recognition.onend = () => {
       isListening = false;
       voiceBtn.classList.remove('listening');
-      voiceBtn.title = 'Voice Search (Tamil & English)';
+      voiceBtn.title = 'Voice Search (English)';
     };
 
     recognition.onerror = (event) => {
@@ -3770,12 +3761,8 @@ class MusicApp {
       voiceBtn.classList.remove('listening');
       if (event.error === 'no-speech') {
         this.showToast('🎙️ No speech detected. Try again!');
-      } else if (event.error === 'language-not-supported') {
-        // Retry with English
-        recognition.lang = 'en-IN';
-        try { recognition.start(); isListening = true; voiceBtn.classList.add('listening'); } catch(e) {}
       } else {
-        this.showToast('🎙️ Voice search failed: ' + event.error);
+        this.showToast('🎙️ Voice search: ' + event.error);
       }
     };
   }
