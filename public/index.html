@@ -166,6 +166,18 @@
         </div>
 
         <div class="header-right">
+          <!-- Song Recognition / Identify Music Pill -->
+          <button class="header-action-pill" id="recognizeSongBtn" title="Identify Song (What's this song?)">
+            <span class="pill-icon">🎵</span>
+            <span>IDENTIFY</span>
+          </button>
+
+          <!-- Car Drive Mode Pill -->
+          <button class="header-action-pill" id="headerCarModeBtn" title="Car Drive Mode (High-visibility safe player)">
+            <span class="pill-icon">🚗</span>
+            <span>DRIVE</span>
+          </button>
+
           <!-- Sleep Timer Pill -->
           <button class="header-action-pill" id="openSleepModalBtn" title="Bedtime Sleep Timer">
             <span class="pill-icon">💤</span>
@@ -343,6 +355,7 @@
           <button class="lib-tab-btn active" id="libTabFavorites">❤️ Liked Songs</button>
           <button class="lib-tab-btn" id="libTabPlaylists">📁 Custom Playlists</button>
           <button class="lib-tab-btn" id="libTabHistory">🕒 Recently Played</button>
+          <button class="lib-tab-btn" id="libTabStats">📊 My Wrapped</button>
         </div>
         <div class="section-header">
           <div>
@@ -362,6 +375,56 @@
         </div>
         <div class="playlists-grid" id="playlistsGrid" style="display: none;"></div>
         <div class="songs-grid" id="customViewGrid"></div>
+
+        <!-- Personal Listening Stats / Spotify Wrapped Section -->
+        <div class="stats-view-section" id="statsViewSection" style="display: none;">
+          <div class="wrapped-hero-card">
+            <div class="wrapped-badge">✨ SPOTIFY WRAPPED • PERSONAL STATS</div>
+            <h2 class="wrapped-title">Your Year in Music</h2>
+            <p class="wrapped-subtitle">Here is a deep dive into your streaming journey, top artists, and sound profile.</p>
+            <div class="wrapped-metrics-grid">
+              <div class="metric-card">
+                <span class="metric-icon">🎵</span>
+                <div class="metric-val" id="statsTotalPlays">0</div>
+                <div class="metric-lbl">Total Songs Played</div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-icon">⏱️</span>
+                <div class="metric-val" id="statsTotalMinutes">0m</div>
+                <div class="metric-lbl">Minutes Listened</div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-icon">👑</span>
+                <div class="metric-val" id="statsTopArtist">--</div>
+                <div class="metric-lbl">#1 Top Artist</div>
+              </div>
+              <div class="metric-card">
+                <span class="metric-icon">💎</span>
+                <div class="metric-val" id="statsTopTrack">--</div>
+                <div class="metric-lbl">Most Played Track</div>
+              </div>
+            </div>
+            <div class="wrapped-actions-row">
+              <button class="btn btn-primary" id="btnShareWrapped">
+                <span>📤 Share My Wrapped</span>
+              </button>
+              <button class="btn btn-secondary" id="btnResetStats">
+                <span>Reset Stats</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="stats-breakdown-row">
+            <div class="stats-subcard">
+              <h3>🎤 Top 5 Artists</h3>
+              <div id="statsTopArtistsList" class="stats-list"></div>
+            </div>
+            <div class="stats-subcard">
+              <h3>🔥 Top 5 Songs</h3>
+              <div id="statsTopTracksList" class="stats-list"></div>
+            </div>
+          </div>
+        </div>
       </section>
 
     </main>
@@ -683,6 +746,14 @@
             <span class="quick-fx-icon">🎬</span>
             <span>Cinema</span>
           </button>
+          <button class="quick-fx-btn" id="sheetCarModeBtn">
+            <span class="quick-fx-icon">🚗</span>
+            <span>Drive Mode</span>
+          </button>
+          <button class="quick-fx-btn active" id="sheetToggleRadio">
+            <span class="quick-fx-icon">📻</span>
+            <span>Auto DJ Radio</span>
+          </button>
         </div>
       </div>
 
@@ -798,15 +869,95 @@
           </label>
         </div>
 
-        <!-- Equalizer Presets -->
+        <!-- 10-Band Graphic Equalizer & Studio Presets -->
         <div class="eq-presets-container">
-          <div class="slider-title">Equalizer Presets</div>
+          <div class="slider-title-row">
+            <span class="slider-title">🎚️ 10-Band Studio Graphic Equalizer</span>
+            <button class="btn-text-sm" id="btnResetEqFlat">Reset Flat</button>
+          </div>
           <div class="preset-chips">
             <button class="preset-chip active" data-preset="dolby">Dolby Atmos Cinema</button>
             <button class="preset-chip" data-preset="spatial">3D Spatial Stage</button>
             <button class="preset-chip" data-preset="bass">Bass Boost Max</button>
-            <button class="preset-chip" data-preset="vocal">Vocal & Acoustic</button>
+            <button class="preset-chip" data-preset="vocal">Vocal Clarity</button>
+            <button class="preset-chip" data-preset="rock">Rock Arena</button>
+            <button class="preset-chip" data-preset="electronic">Electronic / EDM</button>
+            <button class="preset-chip" data-preset="acoustic">Acoustic / Warm</button>
             <button class="preset-chip" data-preset="flat">Flat / Studio</button>
+          </div>
+
+          <!-- 10 Visual Graphic Faders -->
+          <div class="eq-10band-container" id="eq10BandContainer">
+            <div class="eq-band" data-band-index="0">
+              <span class="eq-band-gain" id="eqGain0">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader0" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">31Hz</span>
+            </div>
+            <div class="eq-band" data-band-index="1">
+              <span class="eq-band-gain" id="eqGain1">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader1" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">63Hz</span>
+            </div>
+            <div class="eq-band" data-band-index="2">
+              <span class="eq-band-gain" id="eqGain2">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader2" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">125Hz</span>
+            </div>
+            <div class="eq-band" data-band-index="3">
+              <span class="eq-band-gain" id="eqGain3">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader3" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">250Hz</span>
+            </div>
+            <div class="eq-band" data-band-index="4">
+              <span class="eq-band-gain" id="eqGain4">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader4" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">500Hz</span>
+            </div>
+            <div class="eq-band" data-band-index="5">
+              <span class="eq-band-gain" id="eqGain5">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader5" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">1kHz</span>
+            </div>
+            <div class="eq-band" data-band-index="6">
+              <span class="eq-band-gain" id="eqGain6">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader6" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">2kHz</span>
+            </div>
+            <div class="eq-band" data-band-index="7">
+              <span class="eq-band-gain" id="eqGain7">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader7" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">4kHz</span>
+            </div>
+            <div class="eq-band" data-band-index="8">
+              <span class="eq-band-gain" id="eqGain8">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader8" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">8kHz</span>
+            </div>
+            <div class="eq-band" data-band-index="9">
+              <span class="eq-band-gain" id="eqGain9">0dB</span>
+              <div class="eq-slider-track">
+                <input type="range" class="eq-fader" id="eqFader9" min="-12" max="12" step="1" value="0" orient="vertical">
+              </div>
+              <span class="eq-band-freq">16kHz</span>
+            </div>
           </div>
         </div>
 
@@ -1413,6 +1564,108 @@
         <div class="cinema-song-title" id="cinemaSongTitle">Song Title</div>
         <div class="cinema-song-artist" id="cinemaSongArtist">Artist</div>
         <div class="cinema-lyrics" id="cinemaLyricsContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Car Drive Mode Overlay (Distraction-Free Fullscreen Player) -->
+  <div id="carModeOverlay" class="car-mode-overlay" style="display:none;">
+    <div class="car-mode-header">
+      <div class="car-mode-title-badge">
+        <span>🚗 CAR DRIVE MODE</span>
+      </div>
+      <button class="car-mode-exit-btn" id="closeCarModeBtn">✕ Exit</button>
+    </div>
+
+    <div class="car-mode-body">
+      <div class="car-art-container">
+        <img id="carModeArt" src="" alt="Album Art" class="car-art-img">
+      </div>
+
+      <div class="car-track-meta">
+        <h1 id="carModeTitle" class="car-track-title">No Track Playing</h1>
+        <h2 id="carModeArtist" class="car-track-artist">Select a song to start driving</h2>
+      </div>
+
+      <div class="car-progress-wrap">
+        <div class="car-progress-bar-bg" id="carProgressBarBg">
+          <div class="car-progress-fill" id="carProgressFill"></div>
+        </div>
+        <div class="car-time-row">
+          <span id="carCurrentTime">0:00</span>
+          <span id="carDuration">0:00</span>
+        </div>
+      </div>
+
+      <!-- Giant Touch Controls -->
+      <div class="car-controls-row">
+        <button class="car-btn car-skip-btn" id="carRewindBtn" title="-15 Seconds">
+          <span>↺ 15s</span>
+        </button>
+        <button class="car-btn car-nav-btn" id="carPrevBtn" title="Previous Track">
+          <svg viewBox="0 0 24 24" width="38" height="38" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="3"/></svg>
+        </button>
+        <button class="car-btn car-play-btn" id="carPlayPauseBtn" title="Play/Pause">
+          <svg id="carPlayIcon" viewBox="0 0 24 24" width="46" height="46" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+        </button>
+        <button class="car-btn car-nav-btn" id="carNextBtn" title="Next Track">
+          <svg viewBox="0 0 24 24" width="38" height="38" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="3"/></svg>
+        </button>
+        <button class="car-btn car-skip-btn" id="carForwardBtn" title="+15 Seconds">
+          <span>15s ↻</span>
+        </button>
+      </div>
+
+      <!-- Giant Volume Bar -->
+      <div class="car-volume-row">
+        <span class="car-vol-icon">🔈</span>
+        <input type="range" class="car-vol-slider" id="carVolSlider" min="0" max="1" step="0.01" value="0.85">
+        <span class="car-vol-icon">🔊</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Song Recognition / Shazam Modal -->
+  <div class="audio-fx-modal" id="recognizeModal">
+    <div class="modal-backdrop" id="closeRecognizeBackdrop"></div>
+    <div class="audio-fx-dialog recognize-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">AUDIO RECOGNITION</div>
+          <h2>What's This Song?</h2>
+          <p class="dialog-subtitle">Hold phone near audio source to identify playing tracks</p>
+        </div>
+        <button class="close-dialog-btn" id="closeRecognizeBtn">✕</button>
+      </div>
+
+      <div class="dialog-body recognize-body">
+        <div class="radar-container" id="recognizeRadar">
+          <div class="radar-circle radar-c1"></div>
+          <div class="radar-circle radar-c2"></div>
+          <div class="radar-circle radar-c3"></div>
+          <div class="radar-center-mic">
+            <span class="radar-mic-emoji">🎵</span>
+          </div>
+        </div>
+
+        <div class="recognize-status-wrap">
+          <div class="recognize-status-text" id="recognizeStatusText">Listening to audio around you...</div>
+          <div class="recognize-countdown" id="recognizeCountdown">5s</div>
+        </div>
+
+        <!-- Recognition Result Card (Hidden until match) -->
+        <div class="recognize-result-card" id="recognizeResultCard" style="display: none;">
+          <img id="recognizeResultArt" src="" alt="Album Art" class="recognize-result-img">
+          <div class="recognize-result-info">
+            <div class="recognize-match-badge" id="recognizeMatchBadge">🎯 95% Match</div>
+            <h3 id="recognizeResultTitle" class="recognize-result-title">Song Title</h3>
+            <p id="recognizeResultArtist" class="recognize-result-artist">Artist</p>
+            <p id="recognizeResultAlbum" class="recognize-result-album">Album</p>
+          </div>
+          <button class="btn btn-primary" id="btnPlayRecognized">
+            <span>▶ Play in 320k</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

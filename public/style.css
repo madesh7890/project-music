@@ -6694,3 +6694,504 @@ body {
   color: #fff;
   font-weight: 600;
 }
+
+/* ==========================================================================
+   FEATURE 1: 10-BAND GRAPHIC EQUALIZER
+   ========================================================================== */
+.slider-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.eq-10band-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 18px 12px;
+  margin-top: 16px;
+  gap: 6px;
+  overflow-x: auto;
+}
+.eq-band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 32px;
+}
+.eq-band-gain {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #1ed760;
+  margin-bottom: 8px;
+  min-height: 14px;
+}
+.eq-slider-track {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eq-fader {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: bt-lr;
+  width: 20px;
+  height: 110px;
+  cursor: pointer;
+  accent-color: #1ed760;
+}
+.eq-band-freq {
+  font-size: 0.7rem;
+  color: #b3b3b3;
+  margin-top: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   FEATURE 2: ARTIST RADIO CARD ACTION BUTTON
+   ========================================================================== */
+.btn-card-radio {
+  font-size: 13px;
+  line-height: 1;
+}
+.btn-card-radio:hover {
+  color: #1ed760;
+  transform: scale(1.15);
+}
+
+/* ==========================================================================
+   FEATURE 3: CAR DRIVE MODE UI
+   ========================================================================== */
+.car-mode-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #080808;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  box-sizing: border-box;
+  user-select: none;
+}
+.car-mode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.car-mode-title-badge {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1ed760;
+  letter-spacing: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.car-mode-exit-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 12px 28px;
+  border-radius: 40px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.car-mode-exit-btn:hover {
+  background: #e50914;
+  border-color: #e50914;
+}
+.car-mode-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  max-width: 650px;
+  margin: 0 auto;
+  width: 100%;
+}
+.car-art-container {
+  width: 240px;
+  height: 240px;
+  max-width: 50vw;
+  max-height: 50vw;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 40px rgba(30, 215, 96, 0.2);
+}
+.car-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.car-track-meta {
+  text-align: center;
+  margin: 14px 0;
+  width: 100%;
+}
+.car-track-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.car-track-artist {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.car-progress-wrap {
+  width: 100%;
+  margin: 10px 0;
+}
+.car-progress-bar-bg {
+  width: 100%;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.car-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #1ed760;
+  border-radius: 6px;
+  transition: width 0.15s linear;
+}
+.car-time-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1rem;
+  color: #b3b3b3;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.car-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  margin: 16px 0;
+}
+.car-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.car-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.08);
+}
+.car-skip-btn {
+  width: 58px;
+  height: 58px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 30px;
+}
+.car-nav-btn {
+  width: 74px;
+  height: 74px;
+}
+.car-play-btn {
+  width: 92px;
+  height: 92px;
+  background: #1ed760;
+  color: #000000;
+  border: none;
+  box-shadow: 0 8px 30px rgba(30, 215, 96, 0.4);
+}
+.car-play-btn:hover {
+  background: #1fdf64;
+  transform: scale(1.1);
+}
+.car-volume-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 30px;
+}
+.car-vol-icon {
+  font-size: 1.4rem;
+}
+.car-vol-slider {
+  flex: 1;
+  height: 10px;
+  accent-color: #1ed760;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   FEATURE 4: SPOTIFY WRAPPED & LISTENING STATS
+   ========================================================================== */
+.stats-view-section {
+  padding: 24px 0;
+}
+.wrapped-hero-card {
+  background: linear-gradient(135deg, #1b2838 0%, #171a21 50%, #0d1117 100%);
+  border: 1px solid rgba(30, 215, 96, 0.3);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.wrapped-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #1ed760;
+  background: rgba(30, 215, 96, 0.1);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(30, 215, 96, 0.3);
+  margin-bottom: 14px;
+}
+.wrapped-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+.wrapped-subtitle {
+  color: #b3b3b3;
+  font-size: 1rem;
+  max-width: 600px;
+  margin-bottom: 24px;
+}
+.wrapped-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.metric-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 18px 14px;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+.metric-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.08);
+}
+.metric-icon {
+  font-size: 1.8rem;
+  display: block;
+  margin-bottom: 8px;
+}
+.metric-val {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1ed760;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.metric-lbl {
+  font-size: 0.78rem;
+  color: #b3b3b3;
+  font-weight: 600;
+}
+.wrapped-actions-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stats-breakdown-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.stats-subcard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 22px;
+}
+.stats-subcard h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: #ffffff;
+}
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stats-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+.stats-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stats-item-rank {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #1ed760;
+  width: 20px;
+}
+.stats-item-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+.stats-item-count {
+  font-size: 0.8rem;
+  color: #b3b3b3;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+/* ==========================================================================
+   FEATURE 5: SONG RECOGNITION (SHAZAM-STYLE)
+   ========================================================================== */
+.recognize-dialog {
+  max-width: 480px;
+  text-align: center;
+}
+.recognize-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 20px;
+}
+.radar-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  margin: 10px auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.radar-circle {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(30, 215, 96, 0.6);
+  animation: radarPulse 2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+.radar-c1 { width: 80px; height: 80px; animation-delay: 0s; }
+.radar-c2 { width: 120px; height: 120px; animation-delay: 0.6s; }
+.radar-c3 { width: 160px; height: 160px; animation-delay: 1.2s; }
+@keyframes radarPulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(1.3); opacity: 0; }
+}
+.radar-center-mic {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #1ed760;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: 0 0 30px rgba(30, 215, 96, 0.7);
+}
+.radar-mic-emoji {
+  font-size: 2rem;
+}
+.recognize-status-wrap {
+  margin-bottom: 20px;
+}
+.recognize-status-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+.recognize-countdown {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #1ed760;
+}
+.recognize-result-card {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(30, 215, 96, 0.3);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  text-align: left;
+}
+.recognize-result-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.recognize-result-info {
+  flex: 1;
+  min-width: 0;
+}
+.recognize-match-badge {
+  font-size: 0.7rem;
+  color: #1ed760;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.recognize-result-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recognize-result-artist {
+  font-size: 0.85rem;
+  color: #b3b3b3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recognize-result-album {
+  font-size: 0.75rem;
+  color: #777777;
+}

@@ -202,8 +202,11 @@ function doesMovieAlbumMatch(albumTitle, query) {
 // ── 3. INTENT DETECTION ENGINE ──
 function detectLanguage(q, fallback = 'tamil') {
   if (!q) return fallback;
-  const m = q.match(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i);
-  return m ? m[1].toLowerCase() : (fallback ? fallback.toLowerCase() : 'tamil');
+  const m = q.match(/\b(tamil|thamizh|tamizh|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i);
+  if (!m) return (fallback ? fallback.toLowerCase() : 'tamil');
+  const matched = m[1].toLowerCase();
+  if (matched.startsWith('th') || matched.startsWith('tam')) return 'tamil';
+  return matched;
 }
 
 function detectYear(q) {
@@ -335,6 +338,7 @@ function cleanSearchStopwords(q) {
   if (!q) return '';
   return q
     .replace(/\b(songs?|movie|movies|album|albums|padam|track|tracks|audio|mp3|video|lyrics|hd|bgm|ost|paadal|paattu|pattu|paatalkal|padalkal|paadalgal|full|ringtone|remix|new|latest|trending|viral|hits?|top|best|recent|superhit|chartbusters?)\b/gi, '')
+    .replace(/[()[\]{}]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -342,7 +346,8 @@ function cleanSearchStopwords(q) {
 function stripSearchLanguage(q) {
   if (!q) return '';
   return q
-    .replace(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/gi, '')
+    .replace(/\b(tamil|thamizh|tamizh|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/gi, '')
+    .replace(/[()[\]{}]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -356,7 +361,7 @@ function parseSearchIntent(rawQuery, explicitLanguage) {
   const decade = detectDecade(suffixStripped);
 
   const explicitLanguageRequested = Boolean(
-    explicitLanguage || suffixStripped.match(/\b(tamil|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i)
+    explicitLanguage || suffixStripped.match(/\b(tamil|thamizh|tamizh|telugu|malayalam|hindi|kannada|english|punjabi|marathi|bengali)\b/i)
   );
 
   const isDevotionalExplicit = /\b(devotional|bhakti|bhajan|bakthi|god|shiva|krishna|murugan|vinayagar|amman|temple|mantra|chanting|suprabhatam|slokas?)\b/i.test(suffixStripped);
@@ -368,7 +373,7 @@ function parseSearchIntent(rawQuery, explicitLanguage) {
   const coreWithoutYear = coreKeywords.replace(/\b(19\d{2}|20\d{2})\b/g, '').trim();
 
   const isLatestOrTrending = /\b(new|latest|trending|viral|chartbusters?)\b/i.test(suffixStripped);
-  const isGenericNewOrYear = (!coreWithoutYear || coreWithoutYear.length < 2) && (isLatestOrTrending || year);
+  const isGenericNewOrYear = (!coreWithoutYear || coreWithoutYear.length < 2) ? true : Boolean(isLatestOrTrending || year);
 
   // Check OM Movie Intent specifically ("OM Chapter 1: Udhiram - The Blood Wood")
   const isOmMovie = (
@@ -380,7 +385,7 @@ function parseSearchIntent(rawQuery, explicitLanguage) {
   const matchedArtist = !isOmMovie ? KNOWN_ARTISTS.find(a => a.match.test(suffixStripped)) : null;
 
   // Movie Intent (e.g. query has "movie", "padam", "film", or is a short movie title like "leo", "jailer", "om")
-  const isMovieIntent = isOmMovie || /\b(movie|movies|padam|film|soundtrack)\b/i.test(rawQuery) || Boolean(coreWithoutYear && coreWithoutYear.length >= 2);
+  const isMovieIntent = !isGenericNewOrYear && (isOmMovie || /\b(movie|movies|padam|film|soundtrack)\b/i.test(rawQuery) || Boolean(coreWithoutYear && coreWithoutYear.length >= 2));
 
   return {
     rawQuery,

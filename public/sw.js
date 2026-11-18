@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v33 — Deduplicated clean results grid & English voice search
-const CACHE_NAME = 'music-app-v33';
+// MUSIC - Service Worker v34 — 5 New Features: 10-Band EQ, Car Mode, Song Recognition, Wrapped Stats, Artist Radio
+const CACHE_NAME = 'music-app-v34';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

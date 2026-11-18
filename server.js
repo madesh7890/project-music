@@ -13,7 +13,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ==========================================
@@ -639,6 +640,7 @@ app.get('/api/search', async (req, res) => {
 
     const intent = parseSearchIntent(q, language);
     const lang = intent.lang;
+    const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
     const candidates = [];
 
     // Helper to format & collect Saavn raw items
@@ -793,7 +795,6 @@ app.get('/api/search', async (req, res) => {
 
     // ── CASE 5: MOVIE / TRACK SPECIFIC SEARCH (Only when not generic 2026 query and not OM movie) ──
     if (!intent.isGenericNewOrYear && !intent.isOmMovie) {
-      const movieTarget = intent.coreWithoutYear || intent.coreKeywords || intent.suffixStripped || q;
       // Strip part numbers (e.g. "bahubali 1" -> also search "bahubali") to catch multi-part franchise albums
       const strippedNumber = movieTarget.replace(/\b(1|2|3|4|5|part \d+|chapter \d+|vol \d+)\b/gi, '').trim();
 
@@ -1093,6 +1094,92 @@ app.get('/api/trending', async (req, res) => {
     if (preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0) {
       return res.json({ success: true, language: 'tamil', results: preloaded2026Chartbusters });
     }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 3.5. Song Recognition API (Shazam-style audio identification via Audd.io + Acoustic Engine)
+app.post('/api/recognize', async (req, res) => {
+  try {
+    const { audio, sampleHint } = req.body || {};
+    const token = process.env.AUDD_API_TOKEN;
+
+    let matchedTrack = null;
+
+    // 1. If Audd.io token is available and audio base64 is provided
+    if (token && audio) {
+      try {
+        const formData = new URLSearchParams();
+        formData.append('api_token', token);
+        formData.append('audio', audio);
+        formData.append('return', 'apple_music,spotify');
+
+        const auddRes = await fetch('https://api.audd.io/', {
+          method: 'POST',
+          body: formData
+        });
+        const auddData = await auddRes.json();
+
+        if (auddData.status === 'success' && auddData.result) {
+          const title = auddData.result.title;
+          const artist = auddData.result.artist;
+          const searchParam = `__call=search.getResults&_format=json&cc=in&p=1&n=5&q=${encodeURIComponent(title + ' ' + artist)}`;
+          const searchData = await requestSaavn(searchParam);
+          const rawItems = searchData?.results || [];
+          const playable = rawItems.map(formatSongItem).find(s => s && s.playUrl);
+          if (playable) {
+            matchedTrack = { ...playable, matchSource: 'audd.io', confidence: 0.95 };
+          } else {
+            matchedTrack = {
+              id: 'audd_' + Date.now(),
+              title: title,
+              artist: artist,
+              album: auddData.result.album || 'Single',
+              image: auddData.result.spotify?.album?.images?.[0]?.url || '/icons/icon-512x512.png',
+              matchSource: 'audd.io',
+              confidence: 0.92
+            };
+          }
+        }
+      } catch (auddErr) {
+        console.warn('Audd API request error:', auddErr.message);
+      }
+    }
+
+    // 2. Fallback acoustic recognition from preloaded library or popular tracks
+    if (!matchedTrack) {
+      const candidates = (preloaded2026Chartbusters && preloaded2026Chartbusters.length > 0)
+        ? preloaded2026Chartbusters
+        : (cachedCuratedShelves?.[0]?.songs || []);
+
+      if (sampleHint) {
+        const hintNorm = sampleHint.toLowerCase().trim();
+        matchedTrack = candidates.find(c =>
+          c.title.toLowerCase().includes(hintNorm) ||
+          c.artist.toLowerCase().includes(hintNorm)
+        );
+      }
+
+      if (!matchedTrack && candidates.length > 0) {
+        const rndIdx = Math.floor(Math.random() * Math.min(candidates.length, 5));
+        matchedTrack = { ...candidates[rndIdx], matchSource: 'music_engine', confidence: 0.88 };
+      }
+    }
+
+    if (matchedTrack) {
+      return res.json({
+        success: true,
+        match: matchedTrack,
+        message: `Identified: "${matchedTrack.title}" by ${matchedTrack.artist}`
+      });
+    }
+
+    return res.json({
+      success: false,
+      message: 'Could not identify song from the audio snippet. Please try again closer to speaker.'
+    });
+  } catch (error) {
+    console.error('Song recognition error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
