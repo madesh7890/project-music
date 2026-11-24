@@ -46,7 +46,7 @@ class MusicApp {
     this.sleepFadeOut = true;
     this.sleepStopOnEnd = false;
     this.originalSleepVolume = 0.90;
-    this.isSmartRadioActive = true;
+    this.isSmartRadioActive = localStorage.getItem('music_smart_radio_active') !== 'false';
     this.isSlowedActive = false;
     this.playbackSpeed = 1.0;
     this.deferredPrompt = null;
@@ -80,6 +80,7 @@ class MusicApp {
     this.initKeyboardShortcuts();
     this.initBluetoothDetection();
     this.loadCuratedShelves();
+    this.loadDynamicTrendingTags();
     this.updateFavoritesCount();
     this.updateQualityUI();
     this.initPWA();
@@ -3068,7 +3069,7 @@ class MusicApp {
   // ==================================================================================
   startArtistRadio(song) {
     if (!song) return;
-    this.isSmartRadioActive = true;
+    this.setSmartRadioActive(true, false);
     this.queue = [song];
     this.queueIndex = 0;
     this.playSong(song, [song], 0);
@@ -3596,8 +3597,7 @@ class MusicApp {
     // Smart Radio toggle in queue drawer
     if (this.toggleSmartRadio) {
       this.toggleSmartRadio.addEventListener('change', (e) => {
-        this.isSmartRadioActive = e.target.checked;
-        this.showToast(this.isSmartRadioActive ? '📻 Smart Radio ON – auto-queue enabled' : 'Smart Radio OFF');
+        this.setSmartRadioActive(e.target.checked, true);
       });
     }
 
@@ -4183,20 +4183,91 @@ class MusicApp {
   }
 
   // ===========================================================================
-  // FEATURE 2: Artist Radio & Auto DJ Mix Events
+  // FEATURE 2: Artist Radio & Auto DJ Mix Events & Dynamic Trending Updates
   // ===========================================================================
+  setSmartRadioActive(isActive, showToast = true) {
+    this.isSmartRadioActive = Boolean(isActive);
+    try {
+      localStorage.setItem('music_smart_radio_active', this.isSmartRadioActive ? 'true' : 'false');
+    } catch (e) {}
+
+    const sheetRadioBtn = document.getElementById('sheetToggleRadio');
+    if (sheetRadioBtn) {
+      sheetRadioBtn.classList.toggle('active', this.isSmartRadioActive);
+    }
+    if (this.toggleSmartRadio) {
+      this.toggleSmartRadio.checked = this.isSmartRadioActive;
+    }
+    if (showToast) {
+      this.showToast(this.isSmartRadioActive ? '📻 Auto DJ Radio turned ON – Continuous mix enabled' : '📻 Auto DJ Radio turned OFF');
+    }
+  }
+
   initRadioEvents() {
     const sheetRadioBtn = document.getElementById('sheetToggleRadio');
     if (sheetRadioBtn) {
       sheetRadioBtn.addEventListener('click', () => {
-        if (!this.currentSong) {
-          this.showToast('▶️ Play a song first to start Artist Radio');
-          return;
+        // Toggle the active state (Proper ON/OFF)
+        const newState = !this.isSmartRadioActive;
+        this.setSmartRadioActive(newState, true);
+        if (newState && this.currentSong) {
+          this.fetchSmartRadioRecommendations(this.currentSong, false);
         }
-        this.startArtistRadio(this.currentSong);
-        sheetRadioBtn.classList.add('active');
       });
     }
+
+    // Synchronize UI on load
+    this.setSmartRadioActive(this.isSmartRadioActive, false);
+  }
+
+  async loadDynamicTrendingTags() {
+    const bar = document.getElementById('quickTagsBar');
+    if (!bar) return;
+
+    // 1. Try local cache first for instant 0ms render
+    try {
+      const cached = localStorage.getItem('music_dynamic_trending_tags');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this._renderTrendingTags(parsed);
+        }
+      }
+    } catch (e) {}
+
+    // 2. Fetch fresh live tags from server
+    try {
+      const res = await fetch('/api/trending-tags');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.tags) && data.tags.length > 0) {
+        this._renderTrendingTags(data.tags);
+        try {
+          localStorage.setItem('music_dynamic_trending_tags', JSON.stringify(data.tags));
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn('Failed to fetch dynamic trending tags:', e);
+    }
+  }
+
+  _renderTrendingTags(tags) {
+    const bar = document.getElementById('quickTagsBar');
+    if (!bar) return;
+    bar.innerHTML = '<span class="quick-tag-label">Trending:</span>';
+    tags.forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'quick-tag';
+      btn.dataset.query = t.query;
+      btn.textContent = t.label;
+      btn.addEventListener('click', () => {
+        if (this.searchInput) {
+          this.searchInput.value = t.query;
+          if (this.clearSearchBtn) this.clearSearchBtn.style.display = 'block';
+        }
+        this.performSearch(t.query);
+      });
+      bar.appendChild(btn);
+    });
   }
 
   // ===========================================================================

@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v34 — 5 New Features: 10-Band EQ, Car Mode, Song Recognition, Wrapped Stats, Artist Radio
-const CACHE_NAME = 'music-app-v34';
+// MUSIC - Service Worker v35 — Auto DJ Radio Toggle Fix & Dynamic 2026 Movie Releases Live Sync
+const CACHE_NAME = 'music-app-v35';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

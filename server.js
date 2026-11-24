@@ -926,6 +926,12 @@ app.get('/api/search', async (req, res) => {
 
 const CATEGORIES = [
   {
+    id: 'brand_new_releases',
+    title: '🎬 New Movie Releases & Fresh Tracks (2026)',
+    subtitle: 'Latest soundtrack drops, single releases & cinematic anthems',
+    query: 'Latest Tamil 2026'
+  },
+  {
     id: 'tamil_trending',
     title: '🔥 Trending Tamil Hits',
     subtitle: 'Latest chartbusters and blockbuster anthems (2025 - 2026)',
@@ -1050,6 +1056,81 @@ app.get('/api/shelf/:id', async (req, res) => {
   if (!cat) return res.status(404).json({ success: false, message: 'Shelf not found' });
   const shelf = await fetchShelf(cat);
   res.json({ success: true, shelf });
+});
+
+// Dynamic Trending Tags (Auto-updated from live 2026 releases & chartbusters)
+app.get('/api/trending-tags', async (req, res) => {
+  try {
+    const cacheKey = 'dynamic_trending_tags_v1';
+    const cached = getCache(cacheKey);
+    if (cached && cached.length > 0) {
+      return res.json({ success: true, tags: cached });
+    }
+
+    // Default fallback tags based on latest 2026/2025 movie releases
+    let tags = [
+      { label: '🔥 OM Chapter 1', query: 'OM Chapter 1 Udhiram Sai Abhyankkar' },
+      { label: '⚡ Jailer 2', query: 'Jailer 2 Anirudh' },
+      { label: '💎 Rathinamo', query: 'Rathinamo Saurav Srisan' },
+      { label: '🦁 Amaran', query: 'Amaran GV Prakash' },
+      { label: '🌴 Aavesham', query: 'Illuminati Aavesham' },
+      { label: '🎬 Vettaiyan', query: 'Vettaiyan Anirudh' },
+      { label: '💖 Manjummel Boys', query: 'Manjummel Boys' },
+      { label: '📻 Ilaiyaraaja 80s', query: 'Ilaiyaraaja 80s Evergreen Tamil Hits' },
+      { label: '🎼 AR Rahman Hits', query: 'AR Rahman Tamil Hits' }
+    ];
+
+    try {
+      // Query Saavn for latest 2026 album results to extract fresh movie names
+      const albData = await requestSaavn('__call=search.getAlbumResults&_format=json&cc=in&p=1&n=12&q=Latest+Tamil+2026');
+      if (albData?.results && albData.results.length > 0) {
+        const liveTags = [];
+        const seenNames = new Set();
+        const emojiList = ['🔥', '⚡', '🎬', '💎', '🌴', '🦁', '🌟', '💥'];
+
+        albData.results.forEach(alb => {
+          let cleanTitle = (alb.title || '')
+            .replace(/\s*\(From\s*[^)]*\)/gi, '')
+            .replace(/\s*\[[^\]]*\]/gi, '')
+            .replace(/['"]/g, '')
+            .trim();
+          
+          if (!cleanTitle || cleanTitle.length < 2 || cleanTitle.length > 25) return;
+          const lower = cleanTitle.toLowerCase();
+          if (seenNames.has(lower)) return;
+          seenNames.add(lower);
+
+          const emoji = emojiList[liveTags.length % emojiList.length];
+          liveTags.push({
+            label: `${emoji} ${cleanTitle}`,
+            query: `${cleanTitle} Tamil songs`
+          });
+        });
+
+        if (liveTags.length >= 4) {
+          // Merge top live tags with evergreen essentials
+          tags = [...liveTags.slice(0, 7), ...tags.slice(-2)];
+        }
+      }
+    } catch (tagErr) {
+      console.warn('Dynamic tags live fetch warning:', tagErr.message);
+    }
+
+    setCache(cacheKey, tags, 60 * 60 * 1000); // 1 hour TTL
+    res.json({ success: true, tags });
+  } catch (err) {
+    res.json({
+      success: true,
+      tags: [
+        { label: '🔥 OM Chapter 1', query: 'OM Chapter 1 Udhiram' },
+        { label: '⚡ Jailer 2', query: 'Jailer 2 Anirudh' },
+        { label: '💎 Rathinamo', query: 'Rathinamo' },
+        { label: '🌴 Aavesham', query: 'Aavesham' },
+        { label: '🎬 Vettaiyan', query: 'Vettaiyan' },
+        { label: '🦁 Amaran', query: 'Amaran' }
+      ]
+    });
+  }
 });
 
 // 3. Trending by Language (Tamil, Malayalam, Telugu, Hindi, English, Retro) - Always Fresh & Resilient!
