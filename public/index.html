@@ -90,6 +90,17 @@
 
         <div class="nav-divider"></div>
 
+        <div class="nav-section-title">LIVE BROADCAST</div>
+        <button class="nav-item radio-nav-btn" id="sidebarRadioBtn">
+          <div class="fx-icon-pill" style="background:rgba(239,68,68,0.15);color:#ef4444;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="12" cy="12" r="3"/><path d="M6.343 17.657a8 8 0 0 1 0-11.314M17.657 6.343a8 8 0 0 1 0 11.314M3.515 20.485a12 12 0 0 1 0-16.97M20.485 3.515a12 12 0 0 1 0 16.97"/></svg>
+          </div>
+          <span>Live Tamil FM</span>
+          <span class="active-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444;display:inline-block;"></span>
+        </button>
+
+        <div class="nav-divider"></div>
+
         <div class="nav-section-title">ERA COLLECTIONS</div>
         <button class="nav-item tag-nav" data-query="Ilaiyaraaja 80s 90s Tamil Hits">
           <span class="era-icon">🎼</span>
@@ -166,6 +177,18 @@
         </div>
 
         <div class="header-right">
+          <!-- Friends Jam / Party Room Pill -->
+          <button class="header-action-pill" id="openJamBtn" title="Friends Jam / Live Synced Party Room">
+            <span class="pill-icon">👥</span>
+            <span id="headerJamBadge">JAM</span>
+          </button>
+
+          <!-- Ambient Nature Soundscapes Pill -->
+          <button class="header-action-pill" id="openAmbienceBtn" title="Ambient Nature Soundscapes (Rain, Ocean, Cafe)">
+            <span class="pill-icon">🌧️</span>
+            <span id="headerAmbienceBadge">SOUNDS</span>
+          </button>
+
           <!-- Song Recognition / Identify Music Pill -->
           <button class="header-action-pill" id="recognizeSongBtn" title="Identify Song (What's this song?)">
             <span class="pill-icon">🎵</span>
@@ -288,6 +311,18 @@
           </div>
         </div>
 
+        <!-- Search Actions Bar (Batch Download & Play All) -->
+        <div class="search-actions-bar" id="searchActionsBar" style="display: none;">
+          <button class="btn btn-primary btn-sm" id="btnPlayAllSearch">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            <span>Play All</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnDownloadSearchOffline">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>📦 Download All Tracks (Offline)</span>
+          </button>
+        </div>
+
         <!-- Full Songs Grid -->
         <div class="songs-grid" id="searchResultsGrid"></div>
 
@@ -303,6 +338,43 @@
 
       <!-- Home View Container -->
       <div id="homeView">
+
+        <!-- Mood & Vibe AI Matcher Bar -->
+        <section class="mood-vibe-section" id="moodVibeSection">
+          <div class="mood-vibe-header">
+            <div class="mood-vibe-title-wrap">
+              <span class="mood-vibe-badge">AI MOOD MATCHER</span>
+              <h3 class="mood-vibe-title">What's Your Vibe Right Now?</h3>
+            </div>
+            <span class="mood-vibe-sub">Tap any vibe for instant 320k non-stop flow</span>
+          </div>
+          <div class="mood-vibe-pills" id="moodVibePills">
+            <button class="vibe-pill" data-vibe="workout">
+              <span class="vibe-emoji">⚡</span>
+              <span class="vibe-label">Gym Workout</span>
+            </button>
+            <button class="vibe-pill" data-vibe="night_drive">
+              <span class="vibe-emoji">🌙</span>
+              <span class="vibe-label">Night Drive</span>
+            </button>
+            <button class="vibe-pill" data-vibe="rain">
+              <span class="vibe-emoji">🌧️</span>
+              <span class="vibe-label">Rain Melancholy</span>
+            </button>
+            <button class="vibe-pill" data-vibe="study">
+              <span class="vibe-emoji">📚</span>
+              <span class="vibe-label">Study &amp; Lo-Fi</span>
+            </button>
+            <button class="vibe-pill" data-vibe="kuthu">
+              <span class="vibe-emoji">🔥</span>
+              <span class="vibe-label">Thara Local Kuthu</span>
+            </button>
+            <button class="vibe-pill" data-vibe="romance">
+              <span class="vibe-emoji">💖</span>
+              <span class="vibe-label">Romantic Duets</span>
+            </button>
+          </div>
+        </section>
         
         <!-- Hero Featured Spotlight Banner -->
         <section class="hero-banner" id="heroBanner">
@@ -356,6 +428,7 @@
           <button class="lib-tab-btn" id="libTabPlaylists">📁 Custom Playlists</button>
           <button class="lib-tab-btn" id="libTabHistory">🕒 Recently Played</button>
           <button class="lib-tab-btn" id="libTabStats">📊 My Wrapped</button>
+          <button class="lib-tab-btn" id="libTabRadio">📻 Live Tamil FM</button>
         </div>
         <div class="section-header">
           <div>
@@ -423,6 +496,21 @@
               <h3>🔥 Top 5 Songs</h3>
               <div id="statsTopTracksList" class="stats-list"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Live Tamil FM Stations Section -->
+        <div class="fm-radio-view-section" id="fmRadioViewSection" style="display: none;">
+          <div class="fm-radio-hero-banner">
+            <div class="fm-live-badge-row">
+              <span class="live-dot-pulse"></span>
+              <span class="fm-live-text">LIVE BROADCAST • 24/7 NON-STOP</span>
+            </div>
+            <h2 class="fm-hero-title">Tamil Live FM &amp; Artist Radios</h2>
+            <p class="fm-hero-desc">Direct high-definition audio streams of top Tamil FM stations and non-stop composer radio channels.</p>
+          </div>
+          <div class="fm-stations-grid" id="fmStationsGrid">
+            <!-- Rendered dynamically by app.js -->
           </div>
         </div>
       </section>
@@ -560,6 +648,11 @@
       <!-- Download Button -->
       <button class="icon-button-sm player-download-btn" id="playerDownloadBtn" title="Download Song">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+
+      <!-- Picture-in-Picture Mini Floating Player -->
+      <button class="icon-button-sm" id="pipPlayerBtn" title="Mini Floating Player (Picture-in-Picture)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><rect x="11" y="9" width="9" height="6" rx="1" ry="1" fill="currentColor"></rect></svg>
       </button>
 
       <!-- Fullscreen Expand Button -->
@@ -1675,6 +1768,181 @@
     <span id="offlineToasterText">💾 Saving...</span>
     <div class="offline-progress-bar"><div class="offline-progress-fill" id="offlineProgressFill"></div></div>
   </div>
+
+  <!-- Friends Jam / Party Room Modal -->
+  <div class="audio-fx-modal" id="jamModal" style="display:none;">
+    <div class="modal-backdrop" id="closeJamBackdrop"></div>
+    <div class="audio-fx-dialog jam-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">FRIENDS JAM • LIVE SYNC</div>
+          <h2>Listen Together in Real-Time</h2>
+          <p class="dialog-subtitle">Share your music vibe with friends anywhere with live synchronized playback</p>
+        </div>
+        <button class="close-dialog-btn" id="closeJamBtn">✕</button>
+      </div>
+
+      <div class="dialog-body jam-body">
+        <!-- Not in Room Section -->
+        <div id="jamNoRoomSection">
+          <div class="jam-tabs-nav">
+            <button class="jam-tab-btn active" id="jamTabCreate">Start a Jam Room</button>
+            <button class="jam-tab-btn" id="jamTabJoin">Join a Room</button>
+          </div>
+
+          <!-- Create Tab -->
+          <div id="jamCreateTabContent" class="jam-tab-content">
+            <p class="jam-tab-intro">Create a private listening session. You control the playback, your friends listen live!</p>
+            <div class="jam-input-group">
+              <label for="jamHostNameInput">Your Name</label>
+              <input type="text" id="jamHostNameInput" class="jam-input" placeholder="e.g. Madesh (DJ)">
+            </div>
+            <button class="btn btn-primary btn-block" id="btnCreateJamRoom">
+              <span>🚀 Create Jam Room</span>
+            </button>
+          </div>
+
+          <!-- Join Tab -->
+          <div id="jamJoinTabContent" class="jam-tab-content" style="display:none;">
+            <p class="jam-tab-intro">Enter the room code shared by your friend to jump into their live listening session.</p>
+            <div class="jam-input-group">
+              <label for="jamRoomCodeInput">Room Code</label>
+              <input type="text" id="jamRoomCodeInput" class="jam-input" placeholder="e.g. JAM-K7X2" style="text-transform:uppercase; letter-spacing:2px; font-weight:700;">
+            </div>
+            <div class="jam-input-group">
+              <label for="jamGuestNameInput">Your Name</label>
+              <input type="text" id="jamGuestNameInput" class="jam-input" placeholder="e.g. Friend">
+            </div>
+            <button class="btn btn-primary btn-block" id="btnJoinJamRoom">
+              <span>🔗 Join Jam Session</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- In Room Active State -->
+        <div id="jamActiveRoomSection" style="display:none;">
+          <div class="jam-live-card">
+            <div class="jam-live-badge-row">
+              <span class="live-dot-pulse"></span>
+              <span class="jam-live-status-text" id="jamStatusText">Connected • Live Listening</span>
+              <span class="jam-listeners-badge" id="jamListenersCount">👥 1 listening</span>
+            </div>
+            <div class="jam-code-display-wrap">
+              <span class="jam-code-label">Room Code:</span>
+              <span class="jam-code-val" id="jamRoomCodeDisplay">JAM-XXXX</span>
+              <button class="jam-copy-btn" id="btnCopyJamLink" title="Copy Invite Link">📋 Copy Link</button>
+            </div>
+            <div class="jam-current-track-card" id="jamCurrentTrackCard">
+              <img id="jamTrackArt" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop" alt="Track Art">
+              <div class="jam-track-meta">
+                <h4 id="jamTrackTitle">No Track Playing</h4>
+                <p id="jamTrackArtist">Host hasn't selected a song yet</p>
+                <span class="jam-role-pill" id="jamRolePill">👑 You are Host</span>
+              </div>
+            </div>
+          </div>
+          <div class="jam-room-actions">
+            <button class="btn btn-secondary btn-block" id="btnLeaveJamRoom">
+              <span>Exit Jam Room</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Ambient Nature Soundscapes Modal -->
+  <div class="audio-fx-modal" id="ambienceModal" style="display:none;">
+    <div class="modal-backdrop" id="closeAmbienceBackdrop"></div>
+    <div class="audio-fx-dialog ambience-dialog">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <div class="dialog-badge">WEB AUDIO DSP • NATURE MIXER</div>
+          <h2>Ambient Soundscapes</h2>
+          <p class="dialog-subtitle">Layer soothing procedural nature sounds over your music for focus, sleep, or study</p>
+        </div>
+        <button class="close-dialog-btn" id="closeAmbienceBtn">✕</button>
+      </div>
+
+      <div class="dialog-body ambience-body">
+        <!-- Master Ambience Toggle -->
+        <div class="ambience-master-row">
+          <div class="ambience-master-info">
+            <span class="ambience-master-title">Master Ambience Mixer</span>
+            <span class="ambience-master-sub">Blend nature soundscapes with music</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="ambienceMasterToggle">
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Soundscape Sliders Grid -->
+        <div class="ambience-sliders-list">
+          <!-- Rain -->
+          <div class="ambience-card">
+            <div class="ambience-icon-wrap" style="background:rgba(59,130,246,0.15);color:#3b82f6;">🌧️</div>
+            <div class="ambience-card-meta">
+              <div class="ambience-name-row">
+                <span class="ambience-name">Monsoon Rain</span>
+                <span class="ambience-vol-text" id="ambienceRainVal">0%</span>
+              </div>
+              <input type="range" class="ambience-slider" id="ambienceRainSlider" min="0" max="1" step="0.01" value="0">
+            </div>
+          </div>
+
+          <!-- Ocean Waves -->
+          <div class="ambience-card">
+            <div class="ambience-icon-wrap" style="background:rgba(6,182,212,0.15);color:#06b6d4;">🌊</div>
+            <div class="ambience-card-meta">
+              <div class="ambience-name-row">
+                <span class="ambience-name">Ocean Waves</span>
+                <span class="ambience-vol-text" id="ambienceOceanVal">0%</span>
+              </div>
+              <input type="range" class="ambience-slider" id="ambienceOceanSlider" min="0" max="1" step="0.01" value="0">
+            </div>
+          </div>
+
+          <!-- Cozy Cafe -->
+          <div class="ambience-card">
+            <div class="ambience-icon-wrap" style="background:rgba(245,158,11,0.15);color:#f59e0b;">☕</div>
+            <div class="ambience-card-meta">
+              <div class="ambience-name-row">
+                <span class="ambience-name">Cozy Cafe</span>
+                <span class="ambience-vol-text" id="ambienceCafeVal">0%</span>
+              </div>
+              <input type="range" class="ambience-slider" id="ambienceCafeSlider" min="0" max="1" step="0.01" value="0">
+            </div>
+          </div>
+
+          <!-- Brown Noise -->
+          <div class="ambience-card">
+            <div class="ambience-icon-wrap" style="background:rgba(139,92,246,0.15);color:#8b5cf6;">💤</div>
+            <div class="ambience-card-meta">
+              <div class="ambience-name-row">
+                <span class="ambience-name">Brown Noise (Deep Focus)</span>
+                <span class="ambience-vol-text" id="ambienceNoiseVal">0%</span>
+              </div>
+              <input type="range" class="ambience-slider" id="ambienceNoiseSlider" min="0" max="1" step="0.01" value="0">
+            </div>
+          </div>
+        </div>
+
+        <div class="ambience-quick-presets">
+          <span class="preset-label">Quick Presets:</span>
+          <button class="btn-chip" id="presetRainOnly">🌧️ Heavy Rain</button>
+          <button class="btn-chip" id="presetOceanChill">🌊 Coastal Vibe</button>
+          <button class="btn-chip" id="presetDeepSleep">💤 Deep Sleep</button>
+          <button class="btn-chip" id="presetResetAmbience">✕ Mute All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden elements for Canvas/Video Picture-in-Picture (PiP) -->
+  <canvas id="pipHiddenCanvas" width="512" height="512" style="display:none;"></canvas>
+  <video id="pipHiddenVideo" playsinline muted style="display:none;"></video>
 
   <!-- App Script -->
   <script src="app.js"></script>

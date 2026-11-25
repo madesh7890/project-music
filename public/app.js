@@ -95,6 +95,12 @@ class MusicApp {
     this.initListeningStats();
     this.initSongRecognizer();
     this.initRadioEvents();
+    this.initJamEvents();
+    this.initMoodVibeEvents();
+    this.initPipPlayer();
+    this.initAmbientSoundscapes();
+    this.initLiveTamilFm();
+    this.initBatchAlbumOffline();
 
     // Global user gesture unlocker: immediately wakes up AudioContext on first tap/click anywhere
     const unlockAudio = () => {
@@ -971,6 +977,9 @@ class MusicApp {
         carIcon.innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
       }
     }
+
+    if (this.broadcastJamHostSync) this.broadcastJamHostSync();
+    if (this.isPipActive && this.renderPipCanvasFrame) this.renderPipCanvasFrame();
   }
 
   // ==========================================
@@ -1919,6 +1928,9 @@ class MusicApp {
     this.addToHistory(song);
     this.recordListeningStat(song);
     this._updateCarModeUI(song);
+    if (this.broadcastJamHostSync) this.broadcastJamHostSync();
+    if (this.isPipActive && this.renderPipCanvasFrame) this.renderPipCanvasFrame();
+    if (this.updateJamUI) this.updateJamUI();
 
     // Immediately reset lyrics state so old track's lyrics are NEVER visible on a new track
     this.karaokeLyrics = [];
@@ -2285,6 +2297,12 @@ class MusicApp {
     // Store for filter reuse
     this._lastSearchSongs = songs;
     this._lastSearchQuery = query;
+    this.searchResults = songs;
+
+    const searchActionsBar = document.getElementById('searchActionsBar');
+    if (searchActionsBar) {
+      searchActionsBar.style.display = songs.length > 0 ? 'flex' : 'none';
+    }
 
     // ── 1. Top Result / Best Match Banner Card ──
     const topMatchCard = document.getElementById('searchTopMatchCard');
@@ -2539,6 +2557,13 @@ class MusicApp {
       this.customViewSubtitle.textContent = `${this.history.length} songs played`;
       this.setLibTab('history');
       this.showLibrarySection('history', this.history);
+    } else if (mode === 'radio') {
+      const radioNavBtn = document.getElementById('sidebarRadioBtn');
+      if (radioNavBtn) radioNavBtn.classList.add('active');
+      this.customViewTitle.textContent = 'Live Tamil FM Radio';
+      this.customViewSubtitle.textContent = '24x7 Non-Stop High-Definition Live Streams';
+      this.setLibTab('radio');
+      this.showLibrarySection('radio');
     }
   }
 
@@ -3343,6 +3368,21 @@ class MusicApp {
 
   showLibrarySection(mode, songs) {
     const statsSection = document.getElementById('statsViewSection');
+    const fmRadioSection = document.getElementById('fmRadioViewSection');
+
+    if (mode === 'radio') {
+      if (this.customViewGrid) this.customViewGrid.style.display = 'none';
+      if (this.playlistsGrid) this.playlistsGrid.style.display = 'none';
+      if (statsSection) statsSection.style.display = 'none';
+      if (fmRadioSection) fmRadioSection.style.display = 'block';
+      this.customViewTitle.textContent = 'Live Tamil FM Radio';
+      this.customViewSubtitle.textContent = '24x7 Non-Stop High-Definition Live Streams';
+      this.loadFmRadioStations();
+      return;
+    } else {
+      if (fmRadioSection) fmRadioSection.style.display = 'none';
+    }
+
     if (mode === 'stats') {
       if (this.customViewGrid) this.customViewGrid.style.display = 'none';
       if (this.playlistsGrid) this.playlistsGrid.style.display = 'none';
@@ -4694,6 +4734,877 @@ class MusicApp {
       console.error('Recognition error:', e);
       if (statusText) statusText.textContent = 'Audio recognition service temporary error.';
     }
+  }
+
+  // ==================================================================================
+  // FEATURE 1: FRIENDS JAM / PARTY ROOM ENGINE
+  // ==================================================================================
+  initJamEvents() {
+    this.jamRoom = null;
+    this.jamUserId = localStorage.getItem('music_jam_user_id') || ('user_' + Math.random().toString(36).substring(2, 9));
+    localStorage.setItem('music_jam_user_id', this.jamUserId);
+    this.isJamHost = false;
+    this._jamPollInterval = null;
+    this._jamSyncDebounce = null;
+
+    const openBtn = document.getElementById('openJamBtn');
+    const modal = document.getElementById('jamModal');
+    const closeBtn = document.getElementById('closeJamBtn');
+    const backdrop = document.getElementById('closeJamBackdrop');
+
+    const tabCreate = document.getElementById('jamTabCreate');
+    const tabJoin = document.getElementById('jamTabJoin');
+    const createSec = document.getElementById('jamCreateTabContent');
+    const joinSec = document.getElementById('jamJoinTabContent');
+
+    const btnCreate = document.getElementById('btnCreateJamRoom');
+    const btnJoin = document.getElementById('btnJoinJamRoom');
+    const btnLeave = document.getElementById('btnLeaveJamRoom');
+    const btnCopy = document.getElementById('btnCopyJamLink');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+        this.updateJamUI();
+      });
+    }
+    const closeModal = () => {
+      if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+      }
+    };
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (backdrop) backdrop.addEventListener('click', closeModal);
+
+    if (tabCreate && tabJoin) {
+      tabCreate.addEventListener('click', () => {
+        tabCreate.classList.add('active');
+        tabJoin.classList.remove('active');
+        if (createSec) createSec.style.display = 'block';
+        if (joinSec) joinSec.style.display = 'none';
+      });
+      tabJoin.addEventListener('click', () => {
+        tabJoin.classList.add('active');
+        tabCreate.classList.remove('active');
+        if (joinSec) joinSec.style.display = 'block';
+        if (createSec) createSec.style.display = 'none';
+      });
+    }
+
+    if (btnCreate) {
+      btnCreate.addEventListener('click', async () => {
+        const nameInput = document.getElementById('jamHostNameInput');
+        const hostName = nameInput?.value?.trim() || 'DJ';
+        try {
+          btnCreate.disabled = true;
+          const res = await fetch('/api/jam/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hostName })
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.jamRoom = data.room;
+            this.jamUserId = data.hostId;
+            this.isJamHost = true;
+            this.startJamPolling();
+            this.updateJamUI();
+            this.showToast(`👥 Jam Room ${data.roomId} Created! Share code with friends.`);
+          }
+        } catch (e) {
+          this.showToast('Failed to create Jam Room.');
+        } finally {
+          btnCreate.disabled = false;
+        }
+      });
+    }
+
+    if (btnJoin) {
+      btnJoin.addEventListener('click', async () => {
+        const codeInput = document.getElementById('jamRoomCodeInput');
+        const nameInput = document.getElementById('jamGuestNameInput');
+        const roomId = codeInput?.value?.trim().toUpperCase();
+        const userName = nameInput?.value?.trim() || 'Friend';
+        if (!roomId) {
+          this.showToast('Please enter a Jam Room code.');
+          return;
+        }
+        try {
+          btnJoin.disabled = true;
+          const res = await fetch('/api/jam/join', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roomId, userName })
+          });
+          const data = await res.json();
+          if (data.success) {
+            this.jamRoom = data.room;
+            this.jamUserId = data.userId;
+            this.isJamHost = false;
+            this.startJamPolling();
+            this.updateJamUI();
+            this.showToast(`🎉 Joined Jam Room ${data.roomId}! Playback synced.`);
+            if (this.jamRoom.currentTrack) {
+              this.syncGuestPlayback(this.jamRoom.currentTrack, this.jamRoom.currentTime, this.jamRoom.isPlaying);
+            }
+          } else {
+            this.showToast(data.message || 'Room not found.');
+          }
+        } catch (e) {
+          this.showToast('Failed to join Jam room.');
+        } finally {
+          btnJoin.disabled = false;
+        }
+      });
+    }
+
+    if (btnLeave) {
+      btnLeave.addEventListener('click', async () => {
+        if (this.jamRoom) {
+          try {
+            await fetch('/api/jam/leave', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roomId: this.jamRoom.id, userId: this.jamUserId })
+            });
+          } catch (e) {}
+        }
+        this.stopJamPolling();
+        this.jamRoom = null;
+        this.isJamHost = false;
+        this.updateJamUI();
+        this.showToast('Left Jam Session.');
+      });
+    }
+
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        if (!this.jamRoom) return;
+        const shareText = `Join my live music party in MUSIC! Room Code: ${this.jamRoom.id}\n${window.location.origin}/?jam=${this.jamRoom.id}`;
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(shareText);
+          this.showToast('📋 Jam invite link copied to clipboard!');
+        } else {
+          prompt('Copy Jam link:', shareText);
+        }
+      });
+    }
+
+    // Check URL for ?jam=JAM-XXXX on initial load
+    const urlParams = new URLSearchParams(window.location.search);
+    const jamCode = urlParams.get('jam');
+    if (jamCode) {
+      const codeInput = document.getElementById('jamRoomCodeInput');
+      if (codeInput) codeInput.value = jamCode;
+      if (tabJoin) tabJoin.click();
+      if (modal) {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+      }
+    }
+  }
+
+  startJamPolling() {
+    this.stopJamPolling();
+    this._jamPollInterval = setInterval(async () => {
+      if (!this.jamRoom) return;
+      try {
+        const res = await fetch(`/api/jam/poll/${this.jamRoom.id}?userId=${this.jamUserId}`);
+        const data = await res.json();
+        if (data.success && data.room) {
+          this.jamRoom = data.room;
+          this.updateJamUI();
+          if (!this.isJamHost) {
+            // Guest sync logic:
+            if (this.jamRoom.currentTrack) {
+              const currentSongId = this.currentSong?.id;
+              const remoteSongId = this.jamRoom.currentTrack?.id;
+              if (currentSongId !== remoteSongId) {
+                this.syncGuestPlayback(this.jamRoom.currentTrack, this.jamRoom.currentTime, this.jamRoom.isPlaying);
+              } else {
+                // Time drift correction (> 3.5 seconds)
+                const localTime = this.audio?.currentTime || 0;
+                const remoteTime = this.jamRoom.currentTime || 0;
+                if (Math.abs(localTime - remoteTime) > 3.5) {
+                  this.audio.currentTime = remoteTime;
+                }
+                if (this.jamRoom.isPlaying && this.audio.paused) {
+                  this.audio.play().catch(() => {});
+                } else if (!this.jamRoom.isPlaying && !this.audio.paused) {
+                  this.audio.pause();
+                }
+              }
+            }
+          }
+        } else {
+          this.stopJamPolling();
+          this.jamRoom = null;
+          this.updateJamUI();
+          this.showToast('Jam room has ended.');
+        }
+      } catch (e) {}
+    }, 2500);
+  }
+
+  stopJamPolling() {
+    if (this._jamPollInterval) {
+      clearInterval(this._jamPollInterval);
+      this._jamPollInterval = null;
+    }
+  }
+
+  broadcastJamHostSync() {
+    if (!this.jamRoom || !this.isJamHost) return;
+    clearTimeout(this._jamSyncDebounce);
+    this._jamSyncDebounce = setTimeout(async () => {
+      try {
+        await fetch('/api/jam/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: this.jamRoom.id,
+            userId: this.jamUserId,
+            currentTrack: this.currentSong,
+            currentTime: this.audio?.currentTime || 0,
+            isPlaying: !this.audio?.paused
+          })
+        });
+      } catch (e) {}
+    }, 400);
+  }
+
+  syncGuestPlayback(track, time = 0, isPlaying = true) {
+    if (!track) return;
+    this.playSong(track, false);
+    if (time > 0) {
+      setTimeout(() => {
+        if (this.audio) this.audio.currentTime = time;
+      }, 300);
+    }
+    if (!isPlaying && this.audio) {
+      setTimeout(() => this.audio.pause(), 400);
+    }
+  }
+
+  updateJamUI() {
+    const noRoomSec = document.getElementById('jamNoRoomSection');
+    const activeSec = document.getElementById('jamActiveRoomSection');
+    const jamBadge = document.getElementById('headerJamBadge');
+    const roomCodeEl = document.getElementById('jamRoomCodeDisplay');
+    const listenersEl = document.getElementById('jamListenersCount');
+    const rolePill = document.getElementById('jamRolePill');
+    const trackArt = document.getElementById('jamTrackArt');
+    const trackTitle = document.getElementById('jamTrackTitle');
+    const trackArtist = document.getElementById('jamTrackArtist');
+
+    if (this.jamRoom) {
+      if (noRoomSec) noRoomSec.style.display = 'none';
+      if (activeSec) activeSec.style.display = 'block';
+      if (jamBadge) {
+        jamBadge.textContent = '🟢 LIVE';
+        jamBadge.parentElement?.classList.add('active-glow');
+      }
+      if (roomCodeEl) roomCodeEl.textContent = this.jamRoom.id;
+      if (listenersEl) listenersEl.textContent = `👥 ${this.jamRoom.listenersCount || 1} listening`;
+      if (rolePill) rolePill.textContent = this.isJamHost ? '👑 You are Host (DJ)' : `🎧 Host: ${this.jamRoom.hostName || 'Host'}`;
+
+      const cur = this.jamRoom.currentTrack || this.currentSong;
+      if (cur) {
+        if (trackArt) trackArt.src = cur.image || '/icons/icon-512x512.png';
+        if (trackTitle) trackTitle.textContent = cur.title || 'Playing';
+        if (trackArtist) trackArtist.textContent = cur.artist || '';
+      }
+    } else {
+      if (noRoomSec) noRoomSec.style.display = 'block';
+      if (activeSec) activeSec.style.display = 'none';
+      if (jamBadge) {
+        jamBadge.textContent = 'JAM';
+        jamBadge.parentElement?.classList.remove('active-glow');
+      }
+    }
+  }
+
+  // ==================================================================================
+  // FEATURE 2: MOOD & VIBE AI MATCHER
+  // ==================================================================================
+  initMoodVibeEvents() {
+    const pills = document.querySelectorAll('.vibe-pill');
+    pills.forEach(pill => {
+      pill.addEventListener('click', async () => {
+        const vibe = pill.getAttribute('data-vibe');
+        if (!vibe) return;
+
+        pills.forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+
+        this.showToast(`🎭 Matching 320k tracks for ${pill.querySelector('.vibe-label')?.textContent || vibe}...`);
+
+        try {
+          const res = await fetch(`/api/mood/${vibe}`);
+          const data = await res.json();
+          if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+            this.playlist = [...data.results];
+            this.currentIndex = 0;
+            this.playSong(this.playlist[0]);
+            this.showToast(`✨ Playing ${data.title || vibe} (${data.results.length} songs)`);
+
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) searchInput.value = data.title;
+            this.renderSearchResults(data.results, data.title);
+          } else {
+            this.showToast('Could not load vibe tracks. Please try another vibe.');
+          }
+        } catch (e) {
+          console.error('Mood fetch error:', e);
+          this.showToast('Failed to load mood tracks.');
+        }
+      });
+    });
+  }
+
+  // ==================================================================================
+  // FEATURE 3: MINI FLOATING PLAYER (PIP)
+  // ==================================================================================
+  initPipPlayer() {
+    const pipBtn = document.getElementById('pipPlayerBtn');
+    this.pipCanvas = document.getElementById('pipHiddenCanvas');
+    this.pipVideo = document.getElementById('pipHiddenVideo');
+    this.isPipActive = false;
+
+    if (!pipBtn) return;
+
+    if (!('pictureInPictureEnabled' in document) && !('documentPictureInPicture' in window)) {
+      pipBtn.style.display = 'none';
+      return;
+    }
+
+    pipBtn.addEventListener('click', async () => {
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          this.isPipActive = false;
+          pipBtn.classList.remove('active-glow');
+        } else {
+          await this.enterPipMode();
+        }
+      } catch (e) {
+        console.warn('PiP toggle error:', e);
+        this.showToast('Picture-in-Picture not supported or blocked by browser.');
+      }
+    });
+
+    if (this.pipVideo) {
+      this.pipVideo.addEventListener('leavepictureinpicture', () => {
+        this.isPipActive = false;
+        pipBtn.classList.remove('active-glow');
+      });
+    }
+  }
+
+  async enterPipMode() {
+    if (!this.pipCanvas || !this.pipVideo) return;
+    const pipBtn = document.getElementById('pipPlayerBtn');
+
+    this.renderPipCanvasFrame();
+
+    if (!this.pipVideo.srcObject) {
+      const stream = this.pipCanvas.captureStream(15);
+      this.pipVideo.srcObject = stream;
+    }
+
+    await this.pipVideo.play();
+    await this.pipVideo.requestPictureInPicture();
+    this.isPipActive = true;
+    if (pipBtn) pipBtn.classList.add('active-glow');
+    this.showToast('🖼️ Floating Mini Player active');
+  }
+
+  renderPipCanvasFrame() {
+    if (!this.pipCanvas) return;
+    const ctx = this.pipCanvas.getContext('2d');
+    const w = 512;
+    const h = 512;
+
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#0f172a');
+    grad.addColorStop(1, '#020617');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    const song = this.currentSong || {
+      title: 'MUSIC App',
+      artist: 'Select a song to play',
+      image: '/icons/icon-512x512.png'
+    };
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        ctx.save();
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(56, 40, 400, 300, 16);
+        } else {
+          ctx.rect(56, 40, 400, 300);
+        }
+        ctx.clip();
+        ctx.drawImage(img, 56, 40, 400, 300);
+        ctx.restore();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText((song.title || 'Title').slice(0, 26), 256, 380);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillText((song.artist || 'Artist').slice(0, 32), 256, 415);
+
+        const progress = (this.audio && this.audio.duration) ? (this.audio.currentTime / this.audio.duration) : 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(56, 450, 400, 6);
+        ctx.fillStyle = '#1ed760';
+        ctx.fillRect(56, 450, 400 * progress, 6);
+
+        ctx.fillStyle = '#1ed760';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText(this.audio && !this.audio.paused ? '▶ PLAYING (320K HI-RES)' : '⏸ PAUSED', 256, 485);
+      } catch (err) {}
+    };
+    img.onerror = () => {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(56, 40, 400, 300);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((song.title || 'Title').slice(0, 26), 256, 380);
+    };
+    img.src = song.image || '/icons/icon-512x512.png';
+  }
+
+  // ==================================================================================
+  // FEATURE 4: AMBIENT NATURE SOUNDSCAPES DSP
+  // ==================================================================================
+  initAmbientSoundscapes() {
+    this.ambienceActive = false;
+    this.ambienceNodes = {
+      rainGain: null,
+      oceanGain: null,
+      cafeGain: null,
+      noiseGain: null,
+      masterGain: null
+    };
+
+    const openBtn = document.getElementById('openAmbienceBtn');
+    const modal = document.getElementById('ambienceModal');
+    const closeBtn = document.getElementById('closeAmbienceBtn');
+    const backdrop = document.getElementById('closeAmbienceBackdrop');
+
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => {
+        modal.classList.add('open');
+        modal.style.display = 'flex';
+      });
+    }
+    const closeModal = () => {
+      if (modal) {
+        modal.classList.remove('open');
+        modal.style.display = 'none';
+      }
+    };
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (backdrop) backdrop.addEventListener('click', closeModal);
+
+    const masterToggle = document.getElementById('ambienceMasterToggle');
+    if (masterToggle) {
+      masterToggle.addEventListener('change', (e) => {
+        this.toggleAmbienceMaster(e.target.checked);
+      });
+    }
+
+    const bindSlider = (sliderId, textId, type) => {
+      const slider = document.getElementById(sliderId);
+      const text = document.getElementById(textId);
+      if (slider) {
+        slider.addEventListener('input', (e) => {
+          const val = parseFloat(e.target.value);
+          if (text) text.textContent = `${Math.round(val * 100)}%`;
+          this.setAmbienceVolume(type, val);
+          if (val > 0 && masterToggle && !masterToggle.checked) {
+            masterToggle.checked = true;
+            this.toggleAmbienceMaster(true);
+          }
+        });
+      }
+    };
+
+    bindSlider('ambienceRainSlider', 'ambienceRainVal', 'rain');
+    bindSlider('ambienceOceanSlider', 'ambienceOceanVal', 'ocean');
+    bindSlider('ambienceCafeSlider', 'ambienceCafeVal', 'cafe');
+    bindSlider('ambienceNoiseSlider', 'ambienceNoiseVal', 'noise');
+
+    const rainBtn = document.getElementById('presetRainOnly');
+    const oceanBtn = document.getElementById('presetOceanChill');
+    const sleepBtn = document.getElementById('presetDeepSleep');
+    const resetBtn = document.getElementById('presetResetAmbience');
+
+    if (rainBtn) {
+      rainBtn.addEventListener('click', () => {
+        this.setAmbiencePreset({ rain: 0.7, ocean: 0, cafe: 0, noise: 0.15 });
+      });
+    }
+    if (oceanBtn) {
+      oceanBtn.addEventListener('click', () => {
+        this.setAmbiencePreset({ rain: 0, ocean: 0.75, cafe: 0, noise: 0.2 });
+      });
+    }
+    if (sleepBtn) {
+      sleepBtn.addEventListener('click', () => {
+        this.setAmbiencePreset({ rain: 0.3, ocean: 0.3, cafe: 0, noise: 0.6 });
+      });
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        this.setAmbiencePreset({ rain: 0, ocean: 0, cafe: 0, noise: 0 });
+      });
+    }
+  }
+
+  setupAmbienceDSP() {
+    if (this.ambienceNodes.masterGain) return;
+    if (!this.audioCtx) this.setupAudioDSP();
+    const ctx = this.audioCtx;
+
+    const master = ctx.createGain();
+    master.gain.value = 0.8;
+    master.connect(ctx.destination);
+    this.ambienceNodes.masterGain = master;
+
+    const bufferSize = ctx.sampleRate * 4;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    let lastOut = 0.0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      output[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = output[i];
+      output[i] *= 3.5;
+    }
+
+    const createLoopSource = () => {
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+      src.loop = true;
+      src.start(0);
+      return src;
+    };
+
+    // Rain
+    const rainSrc = createLoopSource();
+    const rainFilter = ctx.createBiquadFilter();
+    rainFilter.type = 'lowpass';
+    rainFilter.frequency.value = 1800;
+    const rainGain = ctx.createGain();
+    rainGain.gain.value = 0;
+    rainSrc.connect(rainFilter);
+    rainFilter.connect(rainGain);
+    rainGain.connect(master);
+    this.ambienceNodes.rainGain = rainGain;
+
+    // Ocean Waves
+    const oceanSrc = createLoopSource();
+    const oceanFilter = ctx.createBiquadFilter();
+    oceanFilter.type = 'lowpass';
+    oceanFilter.frequency.value = 400;
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.18;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 300;
+    lfo.connect(lfoGain);
+    lfoGain.connect(oceanFilter.frequency);
+    lfo.start();
+    const oceanGain = ctx.createGain();
+    oceanGain.gain.value = 0;
+    oceanSrc.connect(oceanFilter);
+    oceanFilter.connect(oceanGain);
+    oceanGain.connect(master);
+    this.ambienceNodes.oceanGain = oceanGain;
+
+    // Cozy Cafe
+    const cafeSrc = createLoopSource();
+    const cafeFilter = ctx.createBiquadFilter();
+    cafeFilter.type = 'bandpass';
+    cafeFilter.frequency.value = 850;
+    cafeFilter.Q.value = 1.2;
+    const cafeGain = ctx.createGain();
+    cafeGain.gain.value = 0;
+    cafeSrc.connect(cafeFilter);
+    cafeFilter.connect(cafeGain);
+    cafeGain.connect(master);
+    this.ambienceNodes.cafeGain = cafeGain;
+
+    // Brown Noise
+    const noiseSrc = createLoopSource();
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 250;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0;
+    noiseSrc.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(master);
+    this.ambienceNodes.noiseGain = noiseGain;
+  }
+
+  toggleAmbienceMaster(isOn) {
+    this.setupAmbienceDSP();
+    if (!this.audioCtx) return;
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+    const badge = document.getElementById('headerAmbienceBadge');
+    if (this.ambienceNodes.masterGain) {
+      this.ambienceNodes.masterGain.gain.setTargetAtTime(isOn ? 0.8 : 0, this.audioCtx.currentTime, 0.05);
+    }
+    this.ambienceActive = isOn;
+    if (badge) {
+      badge.textContent = isOn ? '🟢 ON' : 'SOUNDS';
+      badge.parentElement?.classList.toggle('active-glow', isOn);
+    }
+    this.showToast(isOn ? '🌧️ Ambient soundscape mixer activated' : 'Ambience muted');
+  }
+
+  setAmbienceVolume(type, val) {
+    this.setupAmbienceDSP();
+    const gainNode = this.ambienceNodes[`${type}Gain`];
+    if (gainNode && this.audioCtx) {
+      gainNode.gain.setTargetAtTime(val, this.audioCtx.currentTime, 0.05);
+    }
+  }
+
+  setAmbiencePreset(levels) {
+    const masterToggle = document.getElementById('ambienceMasterToggle');
+    if (masterToggle) {
+      masterToggle.checked = Object.values(levels).some(v => v > 0);
+      this.toggleAmbienceMaster(masterToggle.checked);
+    }
+    const updateOne = (type, val, sliderId, textId) => {
+      this.setAmbienceVolume(type, val);
+      const slider = document.getElementById(sliderId);
+      const text = document.getElementById(textId);
+      if (slider) slider.value = val;
+      if (text) text.textContent = `${Math.round(val * 100)}%`;
+    };
+    updateOne('rain', levels.rain, 'ambienceRainSlider', 'ambienceRainVal');
+    updateOne('ocean', levels.ocean, 'ambienceOceanSlider', 'ambienceOceanVal');
+    updateOne('cafe', levels.cafe, 'ambienceCafeSlider', 'ambienceCafeVal');
+    updateOne('noise', levels.noise, 'ambienceNoiseSlider', 'ambienceNoiseVal');
+    this.showToast('Ambience preset loaded.');
+  }
+
+  // ==================================================================================
+  // FEATURE 5: LIVE TAMIL FM RADIO ENGINE
+  // ==================================================================================
+  initLiveTamilFm() {
+    this.fmStations = [];
+    this.currentFmStation = null;
+
+    const radioNavBtn = document.getElementById('sidebarRadioBtn');
+    const libTabRadio = document.getElementById('libTabRadio');
+
+    const openRadioView = () => {
+      this.showCustomView('radio');
+      this.loadFmRadioStations();
+    };
+
+    if (radioNavBtn) radioNavBtn.addEventListener('click', openRadioView);
+    if (libTabRadio) libTabRadio.addEventListener('click', openRadioView);
+  }
+
+  async loadFmRadioStations() {
+    const grid = document.getElementById('fmStationsGrid');
+    if (!grid) return;
+
+    if (this.fmStations.length === 0) {
+      try {
+        grid.innerHTML = '<div style="color:var(--text-secondary);padding:30px;">Loading live Tamil FM stations...</div>';
+        const res = await fetch('/api/radio/stations');
+        const data = await res.json();
+        if (data.success && Array.isArray(data.stations)) {
+          this.fmStations = data.stations;
+        }
+      } catch (e) {
+        console.warn('Failed to load FM stations:', e);
+      }
+    }
+
+    if (this.fmStations.length === 0) {
+      grid.innerHTML = '<div style="color:var(--text-secondary);padding:30px;">Failed to load radio stations. Please try again.</div>';
+      return;
+    }
+
+    grid.innerHTML = this.fmStations.map(station => {
+      const isPlaying = this.currentFmStation?.id === station.id && !this.audio?.paused;
+      return `
+        <div class="fm-card ${isPlaying ? 'playing' : ''}" data-station-id="${station.id}">
+          <div class="fm-cover-wrap">
+            <img src="${station.logo}" alt="${station.name}" class="fm-cover-img">
+            <div class="fm-live-tag">LIVE</div>
+            <button class="fm-play-btn" title="${isPlaying ? 'Pause Station' : 'Play Live Station'}">
+              ${isPlaying ? '⏸' : '▶'}
+            </button>
+          </div>
+          <div class="fm-meta">
+            <h4 class="fm-name">${station.name}</h4>
+            <p class="fm-tagline">${station.tagline}</p>
+            <span class="fm-category-badge" style="border-color:${station.color};color:${station.color};">${station.category}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    grid.querySelectorAll('.fm-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const stationId = card.getAttribute('data-station-id');
+        const station = this.fmStations.find(s => s.id === stationId);
+        if (station) {
+          this.playFmStation(station);
+        }
+      });
+    });
+  }
+
+  playFmStation(station) {
+    if (this.currentFmStation?.id === station.id && !this.audio?.paused) {
+      this.audio.pause();
+      this.updatePlayStateUI();
+      this.loadFmRadioStations();
+      return;
+    }
+
+    this.currentFmStation = station;
+    const fakeSong = {
+      id: 'radio_' + station.id,
+      title: station.name,
+      artist: 'Live Tamil FM • ' + station.category,
+      album: 'Live 24x7 Broadcast',
+      image: station.logo,
+      playUrl: station.streamUrl,
+      isRadio: true
+    };
+
+    this.currentSong = fakeSong;
+    this.playlist = [fakeSong];
+    this.currentIndex = 0;
+
+    if (this.audio) {
+      this.audio.src = station.streamUrl;
+      this.audio.play().then(() => {
+        this.isPlaying = true;
+        this.updatePlayStateUI();
+        if (this.playerThumb) this.playerThumb.src = fakeSong.image;
+        if (this.playerTitle) this.playerTitle.textContent = fakeSong.title;
+        if (this.playerArtist) this.playerArtist.textContent = fakeSong.artist;
+        this.showToast(`📻 Tuning in to ${station.name} (Live)...`);
+        this.loadFmRadioStations();
+      }).catch(err => {
+        console.warn('Radio stream playback failed:', err);
+        this.showToast('Radio stream connection error. Please try another channel.');
+      });
+    }
+  }
+
+  // ==================================================================================
+  // FEATURE 6: ONE-CLICK BATCH OFFLINE DOWNLOAD
+  // ==================================================================================
+  initBatchAlbumOffline() {
+    const btnSearchOffline = document.getElementById('btnDownloadSearchOffline');
+    const btnPlayAllSearch = document.getElementById('btnPlayAllSearch');
+
+    if (btnSearchOffline) {
+      btnSearchOffline.addEventListener('click', () => {
+        if (!this.searchResults || this.searchResults.length === 0) {
+          this.showToast('No search results to download.');
+          return;
+        }
+        this.downloadBatchTracks(this.searchResults, 'Search Results');
+      });
+    }
+
+    if (btnPlayAllSearch) {
+      btnPlayAllSearch.addEventListener('click', () => {
+        if (!this.searchResults || this.searchResults.length === 0) return;
+        this.playlist = [...this.searchResults];
+        this.currentIndex = 0;
+        this.playSong(this.playlist[0]);
+        this.showToast(`▶ Playing all ${this.searchResults.length} tracks`);
+      });
+    }
+  }
+
+  async downloadSongForOffline(song) {
+    if (!song || !this.offlineDb) return;
+    const existing = await this._getOfflineSong(song.id);
+    if (existing) return;
+
+    const rawUrl = this.getStreamUrlForFormat(song, '720p');
+    if (!rawUrl) return;
+
+    const response = await fetch(`/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`);
+    if (!response.ok) throw new Error('Fetch failed');
+    const audioBlob = await response.blob();
+
+    await this._storeOfflineSong({
+      id: song.id,
+      song: { ...song, streams: null, playUrl: null },
+      audioBlob,
+      savedAt: Date.now()
+    });
+  }
+
+  async downloadBatchTracks(tracks, albumName = 'Album') {
+    if (!tracks || tracks.length === 0) return;
+    const validTracks = tracks.filter(t => t && (t.playUrl || t.url || t.id));
+    if (validTracks.length === 0) {
+      this.showToast('No downloadable tracks found.');
+      return;
+    }
+
+    const toaster = document.getElementById('offlineToaster');
+    const toastText = document.getElementById('offlineToasterText');
+    const progressFill = document.getElementById('offlineProgressFill');
+
+    if (toaster) toaster.style.display = 'flex';
+    this.showToast(`📦 Starting batch download for ${validTracks.length} tracks...`);
+
+    let downloadedCount = 0;
+    for (let i = 0; i < validTracks.length; i++) {
+      const track = validTracks[i];
+      const percent = Math.round(((i + 1) / validTracks.length) * 100);
+
+      if (toastText) toastText.textContent = `📦 Downloading ${albumName}: ${i + 1} of ${validTracks.length} (${percent}%)...`;
+      if (progressFill) progressFill.style.width = `${percent}%`;
+
+      try {
+        await this.downloadSongForOffline(track);
+        downloadedCount++;
+      } catch (err) {
+        console.warn(`Failed to download ${track.title}:`, err);
+      }
+    }
+
+    if (toastText) toastText.textContent = `🎉 All ${downloadedCount} tracks saved offline!`;
+    if (progressFill) progressFill.style.width = '100%';
+    setTimeout(() => {
+      if (toaster) toaster.style.display = 'none';
+    }, 3500);
+
+    this.showToast(`🎉 ${downloadedCount} tracks downloaded offline successfully! Available without internet.`);
+    this.updateFavoritesCount();
   }
 }
 

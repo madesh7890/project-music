@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v35 — Auto DJ Radio Toggle Fix & Dynamic 2026 Movie Releases Live Sync
-const CACHE_NAME = 'music-app-v35';
+// MUSIC - Service Worker v36 — 6 Elite Features: Jam Room, Mood Matcher, PiP Player, Soundscapes, Live FM, Batch Offline
+const CACHE_NAME = 'music-app-v36';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
