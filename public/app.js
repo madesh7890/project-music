@@ -978,6 +978,11 @@ class MusicApp {
       }
     }
 
+    const miniPlayBtn = document.getElementById('floatingMiniPlayBtn');
+    if (miniPlayBtn) {
+      miniPlayBtn.textContent = this.isPlaying ? '⏸' : '▶';
+    }
+
     if (this.broadcastJamHostSync) this.broadcastJamHostSync();
     if (this.isPipActive && this.renderPipCanvasFrame) this.renderPipCanvasFrame();
   }
@@ -1850,6 +1855,7 @@ class MusicApp {
     }
 
     this.currentSong = song;
+    this.currentFmStation = null;
 
     let playFormat = this.currentFormat;
     if (this._isMobileDevice) {
@@ -1878,29 +1884,47 @@ class MusicApp {
       this.audioCtx.resume();
     }
 
-    this.audio.crossOrigin = 'anonymous';
-    this.audio.preload = 'auto';
-    this.audio.src = audioUrl;
-    this.audio.load();
-
-    const playPromise = this.audio.play();
-    if (playPromise !== undefined) {
-      playPromise.then(() => {
-        this.isPlaying = true;
-        this.updatePlayStateUI();
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-          this.audioCtx.resume();
+    // Support offline saved IndexedDB playback when offline or stream URL was stripped
+    if ((!audioUrl || !navigator.onLine) && this.offlineDb) {
+      this._getOfflineSong(song.id).then(rec => {
+        if (rec && rec.audioBlob) {
+          const blobUrl = URL.createObjectURL(rec.audioBlob);
+          this.audio.removeAttribute('crossOrigin');
+          this.audio.src = blobUrl;
+          this.audio.load();
+          this.audio.play().then(() => {
+            this.isPlaying = true;
+            this.updatePlayStateUI();
+          }).catch(() => {});
+          this.showToast(`💾 Playing offline: "${song.title}"`);
         }
-      }).catch(err => {
-        console.warn('Playback gesture/network catch:', err.message);
-        // Retry play on next tick
-        setTimeout(() => {
+      }).catch(() => {});
+    }
+
+    if (audioUrl) {
+      this.audio.crossOrigin = 'anonymous';
+      this.audio.preload = 'auto';
+      this.audio.src = audioUrl;
+      this.audio.load();
+
+      const playPromise = this.audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          this.isPlaying = true;
+          this.updatePlayStateUI();
           if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
           }
-          this.audio.play().catch(() => {});
-        }, 150);
-      });
+        }).catch(err => {
+          console.warn('Playback gesture/network catch:', err.message);
+          setTimeout(() => {
+            if (this.audioCtx && this.audioCtx.state === 'suspended') {
+              this.audioCtx.resume();
+            }
+            this.audio.play().catch(() => {});
+          }, 150);
+        });
+      }
     }
 
     // Update Bottom Player UI
@@ -1931,6 +1955,7 @@ class MusicApp {
     if (this.broadcastJamHostSync) this.broadcastJamHostSync();
     if (this.isPipActive && this.renderPipCanvasFrame) this.renderPipCanvasFrame();
     if (this.updateJamUI) this.updateJamUI();
+    if (this._updateFloatingMiniWidget) this._updateFloatingMiniWidget();
 
     // Immediately reset lyrics state so old track's lyrics are NEVER visible on a new track
     this.karaokeLyrics = [];
@@ -3351,11 +3376,29 @@ class MusicApp {
         this.showLibrarySection('history', this.history);
       });
     }
+    const libTabOffline = document.getElementById('libTabOffline');
+    if (libTabOffline) {
+      libTabOffline.addEventListener('click', () => {
+        this.setLibTab('offline');
+        this.showLibrarySection('offline');
+      });
+    }
     const libTabStats = document.getElementById('libTabStats');
     if (libTabStats) {
       libTabStats.addEventListener('click', () => {
         this.setLibTab('stats');
         this.showLibrarySection('stats');
+      });
+    }
+    const btnDownloadCustomOffline = document.getElementById('btnDownloadCustomOffline');
+    if (btnDownloadCustomOffline) {
+      btnDownloadCustomOffline.addEventListener('click', () => {
+        const list = this._currentLibrarySongs || this.favorites || [];
+        if (!list.length) {
+          this.showToast('No songs in current library view to download.');
+          return;
+        }
+        this.downloadBatchTracks(list, this.customViewTitle?.textContent || 'Library');
       });
     }
   }
@@ -3376,11 +3419,30 @@ class MusicApp {
       if (statsSection) statsSection.style.display = 'none';
       if (fmRadioSection) fmRadioSection.style.display = 'block';
       this.customViewTitle.textContent = 'Live Tamil FM Radio';
-      this.customViewSubtitle.textContent = '24x7 Non-Stop High-Definition Live Streams';
+      this.customViewSubtitle.textContent = '24x7 Non-Stop High-Definition Live Streams & Artist Radio';
       this.loadFmRadioStations();
       return;
     } else {
       if (fmRadioSection) fmRadioSection.style.display = 'none';
+    }
+
+    if (mode === 'offline') {
+      if (statsSection) statsSection.style.display = 'none';
+      if (this.playlistsGrid) this.playlistsGrid.style.display = 'none';
+      this.customViewGrid.style.display = 'grid';
+      this.customViewTitle.textContent = 'Offline Saved Songs';
+      this.customViewSubtitle.textContent = 'Loading offline storage...';
+      this.getOfflineSongs().then(records => {
+        const offlineList = records.map(r => r.song).filter(Boolean);
+        this._currentLibrarySongs = offlineList;
+        this.customViewSubtitle.textContent = `${offlineList.length} songs saved for offline playback`;
+        if (offlineList.length === 0) {
+          this.customViewGrid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:50px;color:var(--text-muted);"><h3>No offline songs saved yet</h3><p style="margin-top:8px;">Search any movie/album and click <b>📦 Download All Tracks (Offline)</b> to save songs here.</p></div>';
+        } else {
+          this.renderCustomGrid(offlineList);
+        }
+      });
+      return;
     }
 
     if (mode === 'stats') {
@@ -3403,6 +3465,7 @@ class MusicApp {
       if (statsSection) statsSection.style.display = 'none';
       if (this.playlistsGrid) this.playlistsGrid.style.display = 'none';
       this.customViewGrid.style.display = 'grid';
+      this._currentLibrarySongs = songs || [];
       this.renderCustomGrid(songs || []);
     }
   }
@@ -4739,6 +4802,21 @@ class MusicApp {
   // ==================================================================================
   // FEATURE 1: FRIENDS JAM / PARTY ROOM ENGINE
   // ==================================================================================
+  openJamModal() {
+    const modal = document.getElementById('jamModal');
+    if (modal) {
+      modal.classList.add('active');
+      this.updateJamUI();
+    }
+  }
+
+  closeJamModal() {
+    const modal = document.getElementById('jamModal');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+  }
+
   initJamEvents() {
     this.jamRoom = null;
     this.jamUserId = localStorage.getItem('music_jam_user_id') || ('user_' + Math.random().toString(36).substring(2, 9));
@@ -4746,9 +4824,10 @@ class MusicApp {
     this.isJamHost = false;
     this._jamPollInterval = null;
     this._jamSyncDebounce = null;
+    this._jamHostHeartbeat = null;
 
     const openBtn = document.getElementById('openJamBtn');
-    const modal = document.getElementById('jamModal');
+    const toolJamBtn = document.getElementById('toolJamBtn');
     const closeBtn = document.getElementById('closeJamBtn');
     const backdrop = document.getElementById('closeJamBackdrop');
 
@@ -4762,21 +4841,20 @@ class MusicApp {
     const btnLeave = document.getElementById('btnLeaveJamRoom');
     const btnCopy = document.getElementById('btnCopyJamLink');
 
-    if (openBtn && modal) {
-      openBtn.addEventListener('click', () => {
-        modal.classList.add('open');
-        modal.style.display = 'flex';
-        this.updateJamUI();
-      });
+    if (openBtn) openBtn.addEventListener('click', () => this.openJamModal());
+    if (toolJamBtn) toolJamBtn.addEventListener('click', () => this.openJamModal());
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeJamModal());
+    if (backdrop) backdrop.addEventListener('click', () => this.closeJamModal());
+
+    // Quick Tools Strip extra bindings
+    const toolDriveBtn = document.getElementById('toolDriveBtn');
+    const toolIdentifyBtn = document.getElementById('toolIdentifyBtn');
+    if (toolDriveBtn) {
+      toolDriveBtn.addEventListener('click', () => document.getElementById('headerCarModeBtn')?.click());
     }
-    const closeModal = () => {
-      if (modal) {
-        modal.classList.remove('open');
-        modal.style.display = 'none';
-      }
-    };
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (backdrop) backdrop.addEventListener('click', closeModal);
+    if (toolIdentifyBtn) {
+      toolIdentifyBtn.addEventListener('click', () => document.getElementById('recognizeSongBtn')?.click());
+    }
 
     if (tabCreate && tabJoin) {
       tabCreate.addEventListener('click', () => {
@@ -4797,12 +4875,18 @@ class MusicApp {
       btnCreate.addEventListener('click', async () => {
         const nameInput = document.getElementById('jamHostNameInput');
         const hostName = nameInput?.value?.trim() || 'DJ';
+        this.jamHostName = hostName;
         try {
           btnCreate.disabled = true;
           const res = await fetch('/api/jam/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ hostName })
+            body: JSON.stringify({
+              hostName,
+              currentTrack: this.currentSong || null,
+              currentTime: this.audio?.currentTime || 0,
+              isPlaying: Boolean(this.audio && !this.audio.paused)
+            })
           });
           const data = await res.json();
           if (data.success) {
@@ -4812,6 +4896,8 @@ class MusicApp {
             this.startJamPolling();
             this.updateJamUI();
             this.showToast(`👥 Jam Room ${data.roomId} Created! Share code with friends.`);
+          } else {
+            this.showToast(data.message || 'Could not create room.');
           }
         } catch (e) {
           this.showToast('Failed to create Jam Room.');
@@ -4897,34 +4983,37 @@ class MusicApp {
     const jamCode = urlParams.get('jam');
     if (jamCode) {
       const codeInput = document.getElementById('jamRoomCodeInput');
-      if (codeInput) codeInput.value = jamCode;
+      if (codeInput) codeInput.value = jamCode.toUpperCase();
       if (tabJoin) tabJoin.click();
-      if (modal) {
-        modal.classList.add('open');
-        modal.style.display = 'flex';
-      }
+      this.openJamModal();
     }
   }
 
   startJamPolling() {
     this.stopJamPolling();
+
+    // Host sends periodic heartbeat every 3s so playback position & serverless room stay fresh
+    if (this.isJamHost) {
+      this._jamHostHeartbeat = setInterval(() => {
+        this.broadcastJamHostSync(true);
+      }, 3000);
+    }
+
     this._jamPollInterval = setInterval(async () => {
       if (!this.jamRoom) return;
       try {
-        const res = await fetch(`/api/jam/poll/${this.jamRoom.id}?userId=${this.jamUserId}`);
+        const res = await fetch(`/api/jam/poll/${this.jamRoom.id}?userId=${encodeURIComponent(this.jamUserId)}`);
         const data = await res.json();
         if (data.success && data.room) {
           this.jamRoom = data.room;
           this.updateJamUI();
           if (!this.isJamHost) {
-            // Guest sync logic:
             if (this.jamRoom.currentTrack) {
               const currentSongId = this.currentSong?.id;
               const remoteSongId = this.jamRoom.currentTrack?.id;
               if (currentSongId !== remoteSongId) {
                 this.syncGuestPlayback(this.jamRoom.currentTrack, this.jamRoom.currentTime, this.jamRoom.isPlaying);
               } else {
-                // Time drift correction (> 3.5 seconds)
                 const localTime = this.audio?.currentTime || 0;
                 const remoteTime = this.jamRoom.currentTime || 0;
                 if (Math.abs(localTime - remoteTime) > 3.5) {
@@ -4938,7 +5027,7 @@ class MusicApp {
               }
             }
           }
-        } else {
+        } else if (!this.isJamHost) {
           this.stopJamPolling();
           this.jamRoom = null;
           this.updateJamUI();
@@ -4953,12 +5042,15 @@ class MusicApp {
       clearInterval(this._jamPollInterval);
       this._jamPollInterval = null;
     }
+    if (this._jamHostHeartbeat) {
+      clearInterval(this._jamHostHeartbeat);
+      this._jamHostHeartbeat = null;
+    }
   }
 
-  broadcastJamHostSync() {
+  broadcastJamHostSync(immediate = false) {
     if (!this.jamRoom || !this.isJamHost) return;
-    clearTimeout(this._jamSyncDebounce);
-    this._jamSyncDebounce = setTimeout(async () => {
+    const doSync = async () => {
       try {
         await fetch('/api/jam/sync', {
           method: 'POST',
@@ -4966,25 +5058,33 @@ class MusicApp {
           body: JSON.stringify({
             roomId: this.jamRoom.id,
             userId: this.jamUserId,
-            currentTrack: this.currentSong,
+            hostName: this.jamHostName || this.jamRoom.hostName || 'DJ',
+            currentTrack: this.currentSong || null,
             currentTime: this.audio?.currentTime || 0,
-            isPlaying: !this.audio?.paused
+            isPlaying: Boolean(this.audio && !this.audio.paused)
           })
         });
       } catch (e) {}
-    }, 400);
+    };
+    if (immediate) {
+      doSync();
+      return;
+    }
+    clearTimeout(this._jamSyncDebounce);
+    this._jamSyncDebounce = setTimeout(doSync, 350);
   }
 
   syncGuestPlayback(track, time = 0, isPlaying = true) {
     if (!track) return;
-    this.playSong(track, false);
-    if (time > 0) {
-      setTimeout(() => {
-        if (this.audio) this.audio.currentTime = time;
-      }, 300);
-    }
-    if (!isPlaying && this.audio) {
-      setTimeout(() => this.audio.pause(), 400);
+    this.playSong(track, [track], 0);
+    if (time > 0 && this.audio) {
+      const seekOnce = () => {
+        try { this.audio.currentTime = time; } catch (e) {}
+        if (!isPlaying) this.audio.pause();
+      };
+      this.audio.addEventListener('canplay', seekOnce, { once: true });
+    } else if (!isPlaying && this.audio) {
+      setTimeout(() => this.audio.pause(), 350);
     }
   }
 
@@ -4992,6 +5092,7 @@ class MusicApp {
     const noRoomSec = document.getElementById('jamNoRoomSection');
     const activeSec = document.getElementById('jamActiveRoomSection');
     const jamBadge = document.getElementById('headerJamBadge');
+    const toolJamBtn = document.getElementById('toolJamBtn');
     const roomCodeEl = document.getElementById('jamRoomCodeDisplay');
     const listenersEl = document.getElementById('jamListenersCount');
     const rolePill = document.getElementById('jamRolePill');
@@ -5006,6 +5107,7 @@ class MusicApp {
         jamBadge.textContent = '🟢 LIVE';
         jamBadge.parentElement?.classList.add('active-glow');
       }
+      if (toolJamBtn) toolJamBtn.classList.add('active-glow');
       if (roomCodeEl) roomCodeEl.textContent = this.jamRoom.id;
       if (listenersEl) listenersEl.textContent = `👥 ${this.jamRoom.listenersCount || 1} listening`;
       if (rolePill) rolePill.textContent = this.isJamHost ? '👑 You are Host (DJ)' : `🎧 Host: ${this.jamRoom.hostName || 'Host'}`;
@@ -5023,6 +5125,7 @@ class MusicApp {
         jamBadge.textContent = 'JAM';
         jamBadge.parentElement?.classList.remove('active-glow');
       }
+      if (toolJamBtn) toolJamBtn.classList.remove('active-glow');
     }
   }
 
@@ -5039,20 +5142,19 @@ class MusicApp {
         pills.forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
 
-        this.showToast(`🎭 Matching 320k tracks for ${pill.querySelector('.vibe-label')?.textContent || vibe}...`);
+        const vibeName = pill.querySelector('.vibe-label')?.textContent || vibe;
+        this.showToast(`🎭 Loading 320k tracks for ${vibeName}...`);
 
         try {
           const res = await fetch(`/api/mood/${vibe}`);
           const data = await res.json();
           if (data.success && Array.isArray(data.results) && data.results.length > 0) {
-            this.playlist = [...data.results];
-            this.currentIndex = 0;
-            this.playSong(this.playlist[0]);
-            this.showToast(`✨ Playing ${data.title || vibe} (${data.results.length} songs)`);
+            this.playSong(data.results[0], data.results, 0);
+            this.showToast(`✨ Playing ${data.title || vibeName} (${data.results.length} songs)`);
 
             const searchInput = document.getElementById('searchInput');
-            if (searchInput) searchInput.value = data.title;
-            this.renderSearchResults(data.results, data.title);
+            if (searchInput) searchInput.value = data.title || vibeName;
+            this.renderSearchResults(data.results, data.title || vibeName);
           } else {
             this.showToast('Could not load vibe tracks. Please try another vibe.');
           }
@@ -5065,60 +5167,133 @@ class MusicApp {
   }
 
   // ==================================================================================
-  // FEATURE 3: MINI FLOATING PLAYER (PIP)
+  // FEATURE 3: MINI FLOATING PLAYER (PIP + MOBILE IN-APP MINI WIDGET)
   // ==================================================================================
   initPipPlayer() {
     const pipBtn = document.getElementById('pipPlayerBtn');
+    const sheetPipBtn = document.getElementById('sheetPipBtn');
+    const toolPipBtn = document.getElementById('toolPipBtn');
+
     this.pipCanvas = document.getElementById('pipHiddenCanvas');
     this.pipVideo = document.getElementById('pipHiddenVideo');
     this.isPipActive = false;
+    this._pipDrawInterval = null;
+    this._pipCachedImgUrl = null;
+    this._pipCachedImg = null;
 
-    if (!pipBtn) return;
+    const handleToggle = () => this.togglePipPlayer();
+    if (pipBtn) pipBtn.addEventListener('click', handleToggle);
+    if (sheetPipBtn) sheetPipBtn.addEventListener('click', handleToggle);
+    if (toolPipBtn) toolPipBtn.addEventListener('click', handleToggle);
 
-    if (!('pictureInPictureEnabled' in document) && !('documentPictureInPicture' in window)) {
-      pipBtn.style.display = 'none';
-      return;
+    // Floating In-App Mini Widget controls
+    const miniPlayBtn = document.getElementById('floatingMiniPlayBtn');
+    const miniNextBtn = document.getElementById('floatingMiniNextBtn');
+    const miniCloseBtn = document.getElementById('floatingMiniCloseBtn');
+
+    if (miniPlayBtn) {
+      miniPlayBtn.addEventListener('click', () => document.getElementById('playPauseBtn')?.click());
     }
-
-    pipBtn.addEventListener('click', async () => {
-      try {
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture();
-          this.isPipActive = false;
-          pipBtn.classList.remove('active-glow');
-        } else {
-          await this.enterPipMode();
-        }
-      } catch (e) {
-        console.warn('PiP toggle error:', e);
-        this.showToast('Picture-in-Picture not supported or blocked by browser.');
-      }
-    });
+    if (miniNextBtn) {
+      miniNextBtn.addEventListener('click', () => this.nextSong && this.nextSong());
+    }
+    if (miniCloseBtn) {
+      miniCloseBtn.addEventListener('click', () => {
+        const w = document.getElementById('floatingMiniWidget');
+        if (w) w.style.display = 'none';
+        this.isPipActive = false;
+        this._updatePipButtonsState(false);
+      });
+    }
 
     if (this.pipVideo) {
       this.pipVideo.addEventListener('leavepictureinpicture', () => {
         this.isPipActive = false;
-        pipBtn.classList.remove('active-glow');
+        clearInterval(this._pipDrawInterval);
+        this._updatePipButtonsState(false);
       });
     }
   }
 
-  async enterPipMode() {
-    if (!this.pipCanvas || !this.pipVideo) return;
-    const pipBtn = document.getElementById('pipPlayerBtn');
+  _updatePipButtonsState(active) {
+    ['pipPlayerBtn', 'sheetPipBtn', 'toolPipBtn'].forEach(id => {
+      document.getElementById(id)?.classList.toggle('active-glow', active);
+    });
+  }
 
-    this.renderPipCanvasFrame();
+  _updateFloatingMiniWidget() {
+    const w = document.getElementById('floatingMiniWidget');
+    if (!w) return;
+    const art = document.getElementById('floatingMiniArt');
+    const title = document.getElementById('floatingMiniTitle');
+    const artist = document.getElementById('floatingMiniArtist');
+    const playBtn = document.getElementById('floatingMiniPlayBtn');
 
-    if (!this.pipVideo.srcObject) {
-      const stream = this.pipCanvas.captureStream(15);
-      this.pipVideo.srcObject = stream;
+    const song = this.currentSong;
+    if (song) {
+      if (art) art.src = song.image || '/icons/icon-512x512.png';
+      if (title) title.textContent = song.title || 'MUSIC';
+      if (artist) artist.textContent = song.artist || song.album || '320k Audio';
+    }
+    if (playBtn) {
+      playBtn.textContent = this.isPlaying ? '⏸' : '▶';
+    }
+  }
+
+  async togglePipPlayer() {
+    const miniWidget = document.getElementById('floatingMiniWidget');
+
+    // Exit active PiP if already open
+    if (document.pictureInPictureElement) {
+      try { await document.exitPictureInPicture(); } catch (e) {}
+      this.isPipActive = false;
+      clearInterval(this._pipDrawInterval);
+      this._updatePipButtonsState(false);
+      return;
     }
 
-    await this.pipVideo.play();
-    await this.pipVideo.requestPictureInPicture();
-    this.isPipActive = true;
-    if (pipBtn) pipBtn.classList.add('active-glow');
-    this.showToast('🖼️ Floating Mini Player active');
+    if (miniWidget && miniWidget.style.display === 'flex') {
+      miniWidget.style.display = 'none';
+      this.isPipActive = false;
+      this._updatePipButtonsState(false);
+      return;
+    }
+
+    // Try Native Browser Picture-in-Picture first (Desktop Chrome / Edge / Safari)
+    const canNativePip = Boolean(
+      this.pipCanvas &&
+      this.pipVideo &&
+      document.pictureInPictureEnabled &&
+      typeof this.pipCanvas.captureStream === 'function'
+    );
+
+    if (canNativePip) {
+      try {
+        this.renderPipCanvasFrame();
+        if (!this.pipVideo.srcObject) {
+          this.pipVideo.srcObject = this.pipCanvas.captureStream(10);
+        }
+        await this.pipVideo.play();
+        await this.pipVideo.requestPictureInPicture();
+        this.isPipActive = true;
+        this._updatePipButtonsState(true);
+        clearInterval(this._pipDrawInterval);
+        this._pipDrawInterval = setInterval(() => this.renderPipCanvasFrame(), 1000);
+        this.showToast('🖼️ Mini Floating Player active');
+        return;
+      } catch (e) {
+        console.warn('Native PiP unavailable, activating in-app floating mini player:', e.message);
+      }
+    }
+
+    // Mobile / Fallback: Show crisp In-App Floating Mini Widget
+    if (miniWidget) {
+      this._updateFloatingMiniWidget();
+      miniWidget.style.display = 'flex';
+      this.isPipActive = true;
+      this._updatePipButtonsState(true);
+      this.showToast('🖼️ Floating Mini Player active');
+    }
   }
 
   renderPipCanvasFrame() {
@@ -5127,67 +5302,94 @@ class MusicApp {
     const w = 512;
     const h = 512;
 
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, '#0f172a');
-    grad.addColorStop(1, '#020617');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
     const song = this.currentSong || {
       title: 'MUSIC App',
       artist: 'Select a song to play',
       image: '/icons/icon-512x512.png'
     };
 
+    const drawLayout = (loadedImg = null) => {
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#020617');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      if (loadedImg) {
+        try {
+          ctx.save();
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(76, 36, 360, 290, 18);
+          else ctx.rect(76, 36, 360, 290);
+          ctx.clip();
+          ctx.drawImage(loadedImg, 76, 36, 360, 290);
+          ctx.restore();
+        } catch (e) {}
+      } else {
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(76, 36, 360, 290);
+        ctx.fillStyle = '#1ed760';
+        ctx.font = 'bold 68px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎵', 256, 200);
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((song.title || 'MUSIC').slice(0, 26), 256, 372);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '19px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText((song.artist || 'Ready').slice(0, 32), 256, 408);
+
+      const progress = (this.audio && this.audio.duration && isFinite(this.audio.duration))
+        ? Math.min(1, Math.max(0, this.audio.currentTime / this.audio.duration))
+        : 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(56, 444, 400, 8);
+      ctx.fillStyle = '#1ed760';
+      ctx.fillRect(56, 444, 400 * progress, 8);
+
+      ctx.fillStyle = '#1ed760';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(this.audio && !this.audio.paused ? '▶ PLAYING • 320K' : '⏸ PAUSED', 256, 484);
+    };
+
+    // Always draw synchronously first so captureStream produces an immediate frame
+    const rawArt = song.image || '/icons/icon-512x512.png';
+    const safeSrc = rawArt.startsWith('http') ? `/api/proxy-image?url=${encodeURIComponent(rawArt)}` : rawArt;
+
+    if (this._pipCachedImgUrl === safeSrc && this._pipCachedImg) {
+      drawLayout(this._pipCachedImg);
+      return;
+    }
+
+    drawLayout(null);
+
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      try {
-        ctx.save();
-        ctx.beginPath();
-        if (ctx.roundRect) {
-          ctx.roundRect(56, 40, 400, 300, 16);
-        } else {
-          ctx.rect(56, 40, 400, 300);
-        }
-        ctx.clip();
-        ctx.drawImage(img, 56, 40, 400, 300);
-        ctx.restore();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText((song.title || 'Title').slice(0, 26), 256, 380);
-
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillText((song.artist || 'Artist').slice(0, 32), 256, 415);
-
-        const progress = (this.audio && this.audio.duration) ? (this.audio.currentTime / this.audio.duration) : 0;
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
-        ctx.fillRect(56, 450, 400, 6);
-        ctx.fillStyle = '#1ed760';
-        ctx.fillRect(56, 450, 400 * progress, 6);
-
-        ctx.fillStyle = '#1ed760';
-        ctx.font = 'bold 14px monospace';
-        ctx.fillText(this.audio && !this.audio.paused ? '▶ PLAYING (320K HI-RES)' : '⏸ PAUSED', 256, 485);
-      } catch (err) {}
+      this._pipCachedImgUrl = safeSrc;
+      this._pipCachedImg = img;
+      drawLayout(img);
     };
-    img.onerror = () => {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(56, 40, 400, 300);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 24px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText((song.title || 'Title').slice(0, 26), 256, 380);
-    };
-    img.src = song.image || '/icons/icon-512x512.png';
+    img.src = safeSrc;
   }
 
   // ==================================================================================
   // FEATURE 4: AMBIENT NATURE SOUNDSCAPES DSP
   // ==================================================================================
+  openAmbienceModal() {
+    const modal = document.getElementById('ambienceModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  closeAmbienceModal() {
+    const modal = document.getElementById('ambienceModal');
+    if (modal) modal.classList.remove('active');
+  }
+
   initAmbientSoundscapes() {
     this.ambienceActive = false;
     this.ambienceNodes = {
@@ -5199,24 +5401,14 @@ class MusicApp {
     };
 
     const openBtn = document.getElementById('openAmbienceBtn');
-    const modal = document.getElementById('ambienceModal');
+    const toolAmbienceBtn = document.getElementById('toolAmbienceBtn');
     const closeBtn = document.getElementById('closeAmbienceBtn');
     const backdrop = document.getElementById('closeAmbienceBackdrop');
 
-    if (openBtn && modal) {
-      openBtn.addEventListener('click', () => {
-        modal.classList.add('open');
-        modal.style.display = 'flex';
-      });
-    }
-    const closeModal = () => {
-      if (modal) {
-        modal.classList.remove('open');
-        modal.style.display = 'none';
-      }
-    };
-    if (closeBtn) closeBtn.addEventListener('click', closeModal);
-    if (backdrop) backdrop.addEventListener('click', closeModal);
+    if (openBtn) openBtn.addEventListener('click', () => this.openAmbienceModal());
+    if (toolAmbienceBtn) toolAmbienceBtn.addEventListener('click', () => this.openAmbienceModal());
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeAmbienceModal());
+    if (backdrop) backdrop.addEventListener('click', () => this.closeAmbienceModal());
 
     const masterToggle = document.getElementById('ambienceMasterToggle');
     if (masterToggle) {
@@ -5232,11 +5424,11 @@ class MusicApp {
         slider.addEventListener('input', (e) => {
           const val = parseFloat(e.target.value);
           if (text) text.textContent = `${Math.round(val * 100)}%`;
-          this.setAmbienceVolume(type, val);
           if (val > 0 && masterToggle && !masterToggle.checked) {
             masterToggle.checked = true;
             this.toggleAmbienceMaster(true);
           }
+          this.setAmbienceVolume(type, val);
         });
       }
     };
@@ -5253,17 +5445,17 @@ class MusicApp {
 
     if (rainBtn) {
       rainBtn.addEventListener('click', () => {
-        this.setAmbiencePreset({ rain: 0.7, ocean: 0, cafe: 0, noise: 0.15 });
+        this.setAmbiencePreset({ rain: 0.75, ocean: 0, cafe: 0, noise: 0.15 });
       });
     }
     if (oceanBtn) {
       oceanBtn.addEventListener('click', () => {
-        this.setAmbiencePreset({ rain: 0, ocean: 0.75, cafe: 0, noise: 0.2 });
+        this.setAmbiencePreset({ rain: 0, ocean: 0.80, cafe: 0, noise: 0.20 });
       });
     }
     if (sleepBtn) {
       sleepBtn.addEventListener('click', () => {
-        this.setAmbiencePreset({ rain: 0.3, ocean: 0.3, cafe: 0, noise: 0.6 });
+        this.setAmbiencePreset({ rain: 0.35, ocean: 0.35, cafe: 0, noise: 0.65 });
       });
     }
     if (resetBtn) {
@@ -5274,56 +5466,83 @@ class MusicApp {
   }
 
   setupAmbienceDSP() {
-    if (this.ambienceNodes.masterGain) return;
+    if (this.ambienceNodes.masterGain) {
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+      return;
+    }
     if (!this.audioCtx) this.setupAudioDSP();
     const ctx = this.audioCtx;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
 
     const master = ctx.createGain();
-    master.gain.value = 0.8;
+    master.gain.value = 0.85;
     master.connect(ctx.destination);
     this.ambienceNodes.masterGain = master;
 
+    // Pink noise buffer (crisp, natural for Rain/Ocean/Cafe)
     const bufferSize = ctx.sampleRate * 4;
-    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
+    const pinkBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const pinkOut = pinkBuffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      pinkOut[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+    }
+
+    // Brown noise buffer (deep warm bassy focus/sleep)
+    const brownBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const brownOut = brownBuffer.getChannelData(0);
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      output[i] = (lastOut + (0.02 * white)) / 1.02;
-      lastOut = output[i];
-      output[i] *= 3.5;
+      lastOut = (lastOut + (0.02 * white)) / 1.02;
+      brownOut[i] = lastOut * 3.5;
     }
 
-    const createLoopSource = () => {
+    const createLoopSource = (buf) => {
       const src = ctx.createBufferSource();
-      src.buffer = noiseBuffer;
+      src.buffer = buf;
       src.loop = true;
       src.start(0);
       return src;
     };
 
-    // Rain
-    const rainSrc = createLoopSource();
-    const rainFilter = ctx.createBiquadFilter();
-    rainFilter.type = 'lowpass';
-    rainFilter.frequency.value = 1800;
+    // Rain: Bright steady rainfall hiss
+    const rainSrc = createLoopSource(pinkBuffer);
+    const rainHP = ctx.createBiquadFilter();
+    rainHP.type = 'highpass';
+    rainHP.frequency.value = 450;
+    const rainLP = ctx.createBiquadFilter();
+    rainLP.type = 'lowpass';
+    rainLP.frequency.value = 4200;
     const rainGain = ctx.createGain();
     rainGain.gain.value = 0;
-    rainSrc.connect(rainFilter);
-    rainFilter.connect(rainGain);
+    rainSrc.connect(rainHP);
+    rainHP.connect(rainLP);
+    rainLP.connect(rainGain);
     rainGain.connect(master);
     this.ambienceNodes.rainGain = rainGain;
 
-    // Ocean Waves
-    const oceanSrc = createLoopSource();
+    // Ocean Waves: Rolling LFO modulated surf
+    const oceanSrc = createLoopSource(pinkBuffer);
     const oceanFilter = ctx.createBiquadFilter();
     oceanFilter.type = 'lowpass';
-    oceanFilter.frequency.value = 400;
+    oceanFilter.frequency.value = 500;
     const lfo = ctx.createOscillator();
     lfo.type = 'sine';
-    lfo.frequency.value = 0.18;
+    lfo.frequency.value = 0.16;
     const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 300;
+    lfoGain.gain.value = 380;
     lfo.connect(lfoGain);
     lfoGain.connect(oceanFilter.frequency);
     lfo.start();
@@ -5334,12 +5553,12 @@ class MusicApp {
     oceanGain.connect(master);
     this.ambienceNodes.oceanGain = oceanGain;
 
-    // Cozy Cafe
-    const cafeSrc = createLoopSource();
+    // Cozy Cafe: Warm midrange murmur
+    const cafeSrc = createLoopSource(pinkBuffer);
     const cafeFilter = ctx.createBiquadFilter();
     cafeFilter.type = 'bandpass';
-    cafeFilter.frequency.value = 850;
-    cafeFilter.Q.value = 1.2;
+    cafeFilter.frequency.value = 780;
+    cafeFilter.Q.value = 1.4;
     const cafeGain = ctx.createGain();
     cafeGain.gain.value = 0;
     cafeSrc.connect(cafeFilter);
@@ -5347,11 +5566,11 @@ class MusicApp {
     cafeGain.connect(master);
     this.ambienceNodes.cafeGain = cafeGain;
 
-    // Brown Noise
-    const noiseSrc = createLoopSource();
+    // Brown Noise: Deep low rumble
+    const noiseSrc = createLoopSource(brownBuffer);
     const noiseFilter = ctx.createBiquadFilter();
     noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.value = 250;
+    noiseFilter.frequency.value = 260;
     const noiseGain = ctx.createGain();
     noiseGain.gain.value = 0;
     noiseSrc.connect(noiseFilter);
@@ -5364,34 +5583,37 @@ class MusicApp {
     this.setupAmbienceDSP();
     if (!this.audioCtx) return;
     if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+      this.audioCtx.resume().catch(() => {});
     }
     const badge = document.getElementById('headerAmbienceBadge');
+    const toolBtn = document.getElementById('toolAmbienceBtn');
     if (this.ambienceNodes.masterGain) {
-      this.ambienceNodes.masterGain.gain.setTargetAtTime(isOn ? 0.8 : 0, this.audioCtx.currentTime, 0.05);
+      this.ambienceNodes.masterGain.gain.setTargetAtTime(isOn ? 0.85 : 0, this.audioCtx.currentTime, 0.05);
     }
     this.ambienceActive = isOn;
     if (badge) {
       badge.textContent = isOn ? '🟢 ON' : 'SOUNDS';
       badge.parentElement?.classList.toggle('active-glow', isOn);
     }
-    this.showToast(isOn ? '🌧️ Ambient soundscape mixer activated' : 'Ambience muted');
+    if (toolBtn) toolBtn.classList.toggle('active-glow', isOn);
+    this.showToast(isOn ? '🌧️ Ambient soundscape mixer ON' : 'Ambience muted');
   }
 
   setAmbienceVolume(type, val) {
     this.setupAmbienceDSP();
     const gainNode = this.ambienceNodes[`${type}Gain`];
     if (gainNode && this.audioCtx) {
+      if (this.audioCtx.state === 'suspended') this.audioCtx.resume().catch(() => {});
       gainNode.gain.setTargetAtTime(val, this.audioCtx.currentTime, 0.05);
     }
   }
 
   setAmbiencePreset(levels) {
     const masterToggle = document.getElementById('ambienceMasterToggle');
-    if (masterToggle) {
-      masterToggle.checked = Object.values(levels).some(v => v > 0);
-      this.toggleAmbienceMaster(masterToggle.checked);
-    }
+    const hasAny = Object.values(levels).some(v => v > 0);
+    if (masterToggle) masterToggle.checked = hasAny;
+    this.toggleAmbienceMaster(hasAny);
+
     const updateOne = (type, val, sliderId, textId) => {
       this.setAmbienceVolume(type, val);
       const slider = document.getElementById(sliderId);
@@ -5403,11 +5625,10 @@ class MusicApp {
     updateOne('ocean', levels.ocean, 'ambienceOceanSlider', 'ambienceOceanVal');
     updateOne('cafe', levels.cafe, 'ambienceCafeSlider', 'ambienceCafeVal');
     updateOne('noise', levels.noise, 'ambienceNoiseSlider', 'ambienceNoiseVal');
-    this.showToast('Ambience preset loaded.');
   }
 
   // ==================================================================================
-  // FEATURE 5: LIVE TAMIL FM RADIO ENGINE
+  // FEATURE 5: LIVE TAMIL FM & 24x7 ARTIST RADIO ENGINE
   // ==================================================================================
   initLiveTamilFm() {
     this.fmStations = [];
@@ -5415,6 +5636,7 @@ class MusicApp {
 
     const radioNavBtn = document.getElementById('sidebarRadioBtn');
     const libTabRadio = document.getElementById('libTabRadio');
+    const toolRadioBtn = document.getElementById('toolRadioBtn');
 
     const openRadioView = () => {
       this.showCustomView('radio');
@@ -5423,6 +5645,7 @@ class MusicApp {
 
     if (radioNavBtn) radioNavBtn.addEventListener('click', openRadioView);
     if (libTabRadio) libTabRadio.addEventListener('click', openRadioView);
+    if (toolRadioBtn) toolRadioBtn.addEventListener('click', openRadioView);
   }
 
   async loadFmRadioStations() {
@@ -5448,12 +5671,13 @@ class MusicApp {
     }
 
     grid.innerHTML = this.fmStations.map(station => {
-      const isPlaying = this.currentFmStation?.id === station.id && !this.audio?.paused;
+      const isPlaying = this.currentFmStation?.id === station.id && this.isPlaying;
+      const badgeLabel = station.type === 'artist_radio' ? '24x7 MIX' : 'LIVE FM';
       return `
         <div class="fm-card ${isPlaying ? 'playing' : ''}" data-station-id="${station.id}">
           <div class="fm-cover-wrap">
             <img src="${station.logo}" alt="${station.name}" class="fm-cover-img">
-            <div class="fm-live-tag">LIVE</div>
+            <div class="fm-live-tag">${badgeLabel}</div>
             <button class="fm-play-btn" title="${isPlaying ? 'Pause Station' : 'Play Live Station'}">
               ${isPlaying ? '⏸' : '▶'}
             </button>
@@ -5471,21 +5695,42 @@ class MusicApp {
       card.addEventListener('click', () => {
         const stationId = card.getAttribute('data-station-id');
         const station = this.fmStations.find(s => s.id === stationId);
-        if (station) {
-          this.playFmStation(station);
-        }
+        if (station) this.playFmStation(station);
       });
     });
   }
 
-  playFmStation(station) {
-    if (this.currentFmStation?.id === station.id && !this.audio?.paused) {
+  async playFmStation(station) {
+    // Toggle pause if tapping currently playing station
+    if (this.currentFmStation?.id === station.id && this.isPlaying && this.audio && !this.audio.paused) {
       this.audio.pause();
+      this.isPlaying = false;
       this.updatePlayStateUI();
       this.loadFmRadioStations();
       return;
     }
 
+    // 1. Artist 24x7 Radio (High-yield 320k Saavn queue + Auto DJ Radio)
+    if (station.type === 'artist_radio' && station.query) {
+      this.showToast(`📻 Tuning in to ${station.name} (320k Auto DJ)...`);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(station.query)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+          this.setSmartRadioActive && this.setSmartRadioActive(true, false);
+          this.playSong(data.results[0], data.results, 0);
+          this.currentFmStation = station;
+          this.loadFmRadioStations();
+          return;
+        }
+      } catch (e) {
+        console.warn('Artist radio fetch failed:', e);
+      }
+      this.showToast('Unable to load artist radio tracks.');
+      return;
+    }
+
+    // 2. Live Broadcast Stream (Verified HTTPS CORS * FM Streams)
     this.currentFmStation = station;
     const fakeSong = {
       id: 'radio_' + station.id,
@@ -5498,22 +5743,45 @@ class MusicApp {
     };
 
     this.currentSong = fakeSong;
-    this.playlist = [fakeSong];
-    this.currentIndex = 0;
+    this.queue = [fakeSong];
+    this.queueIndex = 0;
+
+    if (!this.isDspInit) this.setupAudioDSP();
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
 
     if (this.audio) {
+      this.audio.crossOrigin = 'anonymous';
       this.audio.src = station.streamUrl;
+      this.audio.load();
+      this.showToast(`📻 Connecting to ${station.name} (Live)...`);
       this.audio.play().then(() => {
         this.isPlaying = true;
         this.updatePlayStateUI();
         if (this.playerThumb) this.playerThumb.src = fakeSong.image;
         if (this.playerTitle) this.playerTitle.textContent = fakeSong.title;
         if (this.playerArtist) this.playerArtist.textContent = fakeSong.artist;
-        this.showToast(`📻 Tuning in to ${station.name} (Live)...`);
+        if (this.sidebarCover) this.sidebarCover.src = fakeSong.image;
+        if (this.sidebarTitle) this.sidebarTitle.textContent = fakeSong.title;
+        if (this.sidebarArtist) this.sidebarArtist.textContent = fakeSong.artist;
+        if (this.sheetArtwork) this.sheetArtwork.src = fakeSong.image;
+        if (this.sheetSongTitle) this.sheetSongTitle.textContent = fakeSong.title;
+        if (this.sheetSongArtist) this.sheetSongArtist.textContent = fakeSong.artist;
+        this.updateMediaSession && this.updateMediaSession(fakeSong);
+        this._updateFloatingMiniWidget && this._updateFloatingMiniWidget();
         this.loadFmRadioStations();
       }).catch(err => {
-        console.warn('Radio stream playback failed:', err);
-        this.showToast('Radio stream connection error. Please try another channel.');
+        console.warn('Direct FM stream failed, trying CORS proxy:', err.message);
+        this.audio.src = `/api/proxy-audio?url=${encodeURIComponent(station.streamUrl)}`;
+        this.audio.load();
+        this.audio.play().then(() => {
+          this.isPlaying = true;
+          this.updatePlayStateUI();
+          this.loadFmRadioStations();
+        }).catch(() => {
+          this.showToast('FM station temporarily unreachable. Try another station!');
+        });
       });
     }
   }
@@ -5527,36 +5795,45 @@ class MusicApp {
 
     if (btnSearchOffline) {
       btnSearchOffline.addEventListener('click', () => {
-        if (!this.searchResults || this.searchResults.length === 0) {
+        const tracks = this.searchResults || this._lastSearchSongs || [];
+        if (tracks.length === 0) {
           this.showToast('No search results to download.');
           return;
         }
-        this.downloadBatchTracks(this.searchResults, 'Search Results');
+        this.downloadBatchTracks(tracks, this._lastSearchQuery || 'Search Results');
       });
     }
 
     if (btnPlayAllSearch) {
       btnPlayAllSearch.addEventListener('click', () => {
-        if (!this.searchResults || this.searchResults.length === 0) return;
-        this.playlist = [...this.searchResults];
-        this.currentIndex = 0;
-        this.playSong(this.playlist[0]);
-        this.showToast(`▶ Playing all ${this.searchResults.length} tracks`);
+        const tracks = this.searchResults || this._lastSearchSongs || [];
+        if (tracks.length === 0) return;
+        this.playSong(tracks[0], tracks, 0);
+        this.showToast(`▶ Playing all ${tracks.length} tracks`);
       });
     }
   }
 
   async downloadSongForOffline(song) {
-    if (!song || !this.offlineDb) return;
+    if (!song || !this.offlineDb) return false;
     const existing = await this._getOfflineSong(song.id);
-    if (existing) return;
+    if (existing) return true;
 
     const rawUrl = this.getStreamUrlForFormat(song, '720p');
-    if (!rawUrl) return;
+    if (!rawUrl) return false;
 
-    const response = await fetch(`/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`);
-    if (!response.ok) throw new Error('Fetch failed');
-    const audioBlob = await response.blob();
+    let audioBlob = null;
+    try {
+      // Fast direct CDN fetch (CORS enabled on Saavn CDN — avoids Vercel 10s proxy limit)
+      const directRes = await fetch(rawUrl, { mode: 'cors' });
+      if (directRes.ok) audioBlob = await directRes.blob();
+    } catch (e) {}
+
+    if (!audioBlob) {
+      const proxyRes = await fetch(`/api/proxy-audio?url=${encodeURIComponent(rawUrl)}`);
+      if (!proxyRes.ok) throw new Error('Fetch failed');
+      audioBlob = await proxyRes.blob();
+    }
 
     await this._storeOfflineSong({
       id: song.id,
@@ -5564,11 +5841,16 @@ class MusicApp {
       audioBlob,
       savedAt: Date.now()
     });
+    return true;
   }
 
   async downloadBatchTracks(tracks, albumName = 'Album') {
     if (!tracks || tracks.length === 0) return;
-    const validTracks = tracks.filter(t => t && (t.playUrl || t.url || t.id));
+    if (!this.offlineDb) {
+      this.showToast('❌ Offline storage not available in this browser');
+      return;
+    }
+    const validTracks = tracks.filter(t => t && (t.playUrl || t.streams || t.url));
     if (validTracks.length === 0) {
       this.showToast('No downloadable tracks found.');
       return;
@@ -5586,24 +5868,24 @@ class MusicApp {
       const track = validTracks[i];
       const percent = Math.round(((i + 1) / validTracks.length) * 100);
 
-      if (toastText) toastText.textContent = `📦 Downloading ${albumName}: ${i + 1} of ${validTracks.length} (${percent}%)...`;
+      if (toastText) toastText.textContent = `📦 Saving ${albumName}: ${i + 1} of ${validTracks.length} (${percent}%)...`;
       if (progressFill) progressFill.style.width = `${percent}%`;
 
       try {
-        await this.downloadSongForOffline(track);
-        downloadedCount++;
+        const ok = await this.downloadSongForOffline(track);
+        if (ok) downloadedCount++;
       } catch (err) {
         console.warn(`Failed to download ${track.title}:`, err);
       }
     }
 
-    if (toastText) toastText.textContent = `🎉 All ${downloadedCount} tracks saved offline!`;
+    if (toastText) toastText.textContent = `🎉 Saved ${downloadedCount} tracks offline! Check Library → Offline Saved`;
     if (progressFill) progressFill.style.width = '100%';
     setTimeout(() => {
       if (toaster) toaster.style.display = 'none';
-    }, 3500);
+    }, 4000);
 
-    this.showToast(`🎉 ${downloadedCount} tracks downloaded offline successfully! Available without internet.`);
+    this.showToast(`🎉 ${downloadedCount} tracks saved offline! View in Library → 💾 Offline Saved.`);
     this.updateFavoritesCount();
   }
 }
@@ -5659,9 +5941,13 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // Menu items
-  const menuMyLibrary  = document.getElementById('menuMyLibrary');
-  const menuMyPlaylists= document.getElementById('menuMyPlaylists');
-  const menuLogoutBtn  = document.getElementById('menuLogoutBtn');
+  const menuMyLibrary    = document.getElementById('menuMyLibrary');
+  const menuMyPlaylists  = document.getElementById('menuMyPlaylists');
+  const menuOfflineSaved = document.getElementById('menuOfflineSaved');
+  const menuLiveRadio    = document.getElementById('menuLiveRadio');
+  const menuJamRoom      = document.getElementById('menuJamRoom');
+  const menuAmbience     = document.getElementById('menuAmbience');
+  const menuLogoutBtn    = document.getElementById('menuLogoutBtn');
 
   if (menuMyLibrary) {
     menuMyLibrary.addEventListener('click', () => {
@@ -5673,7 +5959,38 @@ window.addEventListener('DOMContentLoaded', () => {
     menuMyPlaylists.addEventListener('click', () => {
       userMenuOverlay.classList.remove('open');
       window.musicApp.showCustomView('favorites');
-      setTimeout(() => window.musicApp.setLibTab && window.musicApp.setLibTab('playlists'), 100);
+      setTimeout(() => {
+        window.musicApp.setLibTab && window.musicApp.setLibTab('playlists');
+        window.musicApp.showLibrarySection && window.musicApp.showLibrarySection('playlists_grid');
+      }, 80);
+    });
+  }
+  if (menuOfflineSaved) {
+    menuOfflineSaved.addEventListener('click', () => {
+      userMenuOverlay.classList.remove('open');
+      window.musicApp.showCustomView('favorites');
+      setTimeout(() => {
+        window.musicApp.setLibTab && window.musicApp.setLibTab('offline');
+        window.musicApp.showLibrarySection && window.musicApp.showLibrarySection('offline');
+      }, 80);
+    });
+  }
+  if (menuLiveRadio) {
+    menuLiveRadio.addEventListener('click', () => {
+      userMenuOverlay.classList.remove('open');
+      window.musicApp.showCustomView('radio');
+    });
+  }
+  if (menuJamRoom) {
+    menuJamRoom.addEventListener('click', () => {
+      userMenuOverlay.classList.remove('open');
+      window.musicApp.openJamModal && window.musicApp.openJamModal();
+    });
+  }
+  if (menuAmbience) {
+    menuAmbience.addEventListener('click', () => {
+      userMenuOverlay.classList.remove('open');
+      window.musicApp.openAmbienceModal && window.musicApp.openAmbienceModal();
     });
   }
   if (menuLogoutBtn) {

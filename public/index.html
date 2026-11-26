@@ -258,6 +258,28 @@
         <button class="quick-tag" data-query="Ilaiyaraaja 80s Evergreen Tamil Hits">🎼 Ilaiyaraaja 80s</button>
       </section>
 
+      <!-- Quick Elite Tools Strip (Accessible on Both Mobile & Desktop) -->
+      <section class="quick-tools-bar" id="quickToolsBar">
+        <button class="quick-tool-pill" id="toolJamBtn" title="Friends Jam Room">
+          <span>👥</span> <span>Friends Jam</span>
+        </button>
+        <button class="quick-tool-pill" id="toolAmbienceBtn" title="Ambient Nature Soundscapes">
+          <span>🌧️</span> <span>Ambient Sounds</span>
+        </button>
+        <button class="quick-tool-pill" id="toolRadioBtn" title="Live Tamil FM Radio">
+          <span>📻</span> <span>Live Tamil FM</span>
+        </button>
+        <button class="quick-tool-pill" id="toolPipBtn" title="Mini Floating Player">
+          <span>🖼️</span> <span>Mini Player</span>
+        </button>
+        <button class="quick-tool-pill" id="toolDriveBtn" title="Car Drive Mode">
+          <span>🚗</span> <span>Drive Mode</span>
+        </button>
+        <button class="quick-tool-pill" id="toolIdentifyBtn" title="Identify Playing Song">
+          <span>🎵</span> <span>Identify Song</span>
+        </button>
+      </section>
+
       <!-- Search Results Section (Shown immediately when searching) -->
       <section class="search-results-section" id="searchResultsSection" style="display: none;">
         <div class="section-header">
@@ -427,6 +449,7 @@
           <button class="lib-tab-btn active" id="libTabFavorites">❤️ Liked Songs</button>
           <button class="lib-tab-btn" id="libTabPlaylists">📁 Custom Playlists</button>
           <button class="lib-tab-btn" id="libTabHistory">🕒 Recently Played</button>
+          <button class="lib-tab-btn" id="libTabOffline">💾 Offline Saved</button>
           <button class="lib-tab-btn" id="libTabStats">📊 My Wrapped</button>
           <button class="lib-tab-btn" id="libTabRadio">📻 Live Tamil FM</button>
         </div>
@@ -439,6 +462,9 @@
             <button class="btn btn-primary" id="playAllCustomBtn">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               <span>Play All</span>
+            </button>
+            <button class="btn btn-secondary" id="btnDownloadCustomOffline">
+              <span>📦 Download All Offline</span>
             </button>
             <button class="btn btn-secondary" id="createPlaylistBtn">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -698,6 +724,9 @@
         <span class="sheet-movie-title" id="sheetMovieTitle">Movie / Album</span>
       </div>
       <div class="sheet-header-actions">
+        <button class="sheet-more-btn" id="sheetPipBtn" title="Mini Floating Player (PiP)">
+          <span style="font-size:15px;">🖼️</span>
+        </button>
         <button class="sheet-more-btn" id="sheetSleepBtn" title="Bedtime Sleep Timer">
           <span style="font-size:16px;">💤</span>
         </button>
@@ -1636,6 +1665,18 @@
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
         Custom Playlists
       </button>
+      <button class="user-menu-item" id="menuOfflineSaved">
+        <span>💾</span> Offline Saved Songs
+      </button>
+      <button class="user-menu-item" id="menuLiveRadio">
+        <span>📻</span> Live Tamil FM Radio
+      </button>
+      <button class="user-menu-item" id="menuJamRoom">
+        <span>👥</span> Friends Jam Room
+      </button>
+      <button class="user-menu-item" id="menuAmbience">
+        <span>🌧️</span> Ambient Soundscapes
+      </button>
       <div class="user-menu-divider"></div>
       <button class="user-menu-item user-menu-logout" id="menuLogoutBtn">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -1770,7 +1811,7 @@
   </div>
 
   <!-- Friends Jam / Party Room Modal -->
-  <div class="audio-fx-modal" id="jamModal" style="display:none;">
+  <div class="audio-fx-modal" id="jamModal">
     <div class="modal-backdrop" id="closeJamBackdrop"></div>
     <div class="audio-fx-dialog jam-dialog">
       <div class="dialog-header">
@@ -1853,7 +1894,7 @@
   </div>
 
   <!-- Ambient Nature Soundscapes Modal -->
-  <div class="audio-fx-modal" id="ambienceModal" style="display:none;">
+  <div class="audio-fx-modal" id="ambienceModal">
     <div class="modal-backdrop" id="closeAmbienceBackdrop"></div>
     <div class="audio-fx-dialog ambience-dialog">
       <div class="dialog-header">
@@ -1941,8 +1982,22 @@
   </div>
 
   <!-- Hidden elements for Canvas/Video Picture-in-Picture (PiP) -->
-  <canvas id="pipHiddenCanvas" width="512" height="512" style="display:none;"></canvas>
-  <video id="pipHiddenVideo" playsinline muted style="display:none;"></video>
+  <canvas id="pipHiddenCanvas" width="512" height="512" style="position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.001;pointer-events:none;z-index:-1;"></canvas>
+  <video id="pipHiddenVideo" playsinline muted style="position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.001;pointer-events:none;z-index:-1;"></video>
+
+  <!-- In-App Floating Mini Player Fallback (Mobile & All Browsers) -->
+  <div id="floatingMiniWidget" class="floating-mini-widget" style="display:none;">
+    <img id="floatingMiniArt" src="/icons/icon-512x512.png" alt="Cover" class="floating-mini-art">
+    <div class="floating-mini-meta">
+      <div id="floatingMiniTitle" class="floating-mini-title">Select a Song</div>
+      <div id="floatingMiniArtist" class="floating-mini-artist">MUSIC 320k</div>
+    </div>
+    <div class="floating-mini-controls">
+      <button id="floatingMiniPlayBtn" class="floating-mini-btn" title="Play/Pause">▶</button>
+      <button id="floatingMiniNextBtn" class="floating-mini-btn" title="Next">⏭</button>
+      <button id="floatingMiniCloseBtn" class="floating-mini-close" title="Close Mini Player">✕</button>
+    </div>
+  </div>
 
   <!-- App Script -->
   <script src="app.js"></script>

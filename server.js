@@ -1268,16 +1268,56 @@ app.post('/api/recognize', async (req, res) => {
 // ==========================================
 // 3.6. FRIENDS JAM / PARTY ROOM API
 // ==========================================
+const http = require('http');
+const os = require('os');
+const JAM_STORE_FILE = path.join(os.tmpdir(), 'project_music_jam_rooms.json');
 const jamRooms = new Map();
+
+function loadJamRoomsFromDisk() {
+  try {
+    if (fs.existsSync(JAM_STORE_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(JAM_STORE_FILE, 'utf8'));
+      const now = Date.now();
+      for (const [k, v] of Object.entries(raw || {})) {
+        if (v && (now - (v.updatedAt || 0) < 2 * 3600 * 1000)) {
+          jamRooms.set(k, v);
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+function saveJamRoomsToDisk() {
+  try {
+    const obj = {};
+    for (const [k, v] of jamRooms.entries()) {
+      obj[k] = v;
+    }
+    fs.writeFileSync(JAM_STORE_FILE, JSON.stringify(obj), 'utf8');
+  } catch (e) {}
+}
+
+function getJamRoom(roomId) {
+  const key = (roomId || '').trim().toUpperCase();
+  if (!key) return null;
+  if (!jamRooms.has(key)) loadJamRoomsFromDisk();
+  return jamRooms.get(key) || null;
+}
+
+// Initial hydration
+loadJamRoomsFromDisk();
 
 // Periodic room cleanup (remove inactive rooms > 2 hours)
 setInterval(() => {
   const now = Date.now();
+  let changed = false;
   for (const [roomId, room] of jamRooms.entries()) {
     if (now - room.updatedAt > 2 * 3600 * 1000) {
       jamRooms.delete(roomId);
+      changed = true;
     }
   }
+  if (changed) saveJamRoomsToDisk();
 }, 30 * 60 * 1000);
 
 function generateJamRoomCode() {
@@ -1291,7 +1331,7 @@ function generateJamRoomCode() {
 
 app.post('/api/jam/create', (req, res) => {
   try {
-    const { hostName } = req.body || {};
+    const { hostName, currentTrack, currentTime, isPlaying } = req.body || {};
     const safeHostName = (hostName || 'Host').trim().slice(0, 30);
     let roomId = generateJamRoomCode();
     let tries = 0;
@@ -1304,13 +1344,14 @@ app.post('/api/jam/create', (req, res) => {
       id: roomId,
       hostId,
       hostName: safeHostName,
-      currentTrack: null,
-      currentTime: 0,
-      isPlaying: false,
+      currentTrack: currentTrack || null,
+      currentTime: Number(currentTime) || 0,
+      isPlaying: Boolean(isPlaying),
       listeners: [{ id: hostId, name: safeHostName, isHost: true, lastPing: Date.now() }],
       updatedAt: Date.now()
     };
     jamRooms.set(roomId, room);
+    saveJamRoomsToDisk();
     res.json({
       success: true,
       roomId,
@@ -1319,9 +1360,9 @@ app.post('/api/jam/create', (req, res) => {
         id: roomId,
         hostId,
         hostName: safeHostName,
-        currentTrack: null,
-        currentTime: 0,
-        isPlaying: false,
+        currentTrack: room.currentTrack,
+        currentTime: room.currentTime,
+        isPlaying: room.isPlaying,
         listenersCount: 1
       }
     });
@@ -1334,25 +1375,27 @@ app.post('/api/jam/join', (req, res) => {
   try {
     const { roomId, userName } = req.body || {};
     const normRoomId = (roomId || '').trim().toUpperCase();
-    const room = jamRooms.get(normRoomId);
+    const room = getJamRoom(normRoomId);
     if (!room) {
-      return res.status(404).json({ success: false, message: 'Jam Room not found. Check code.' });
+      return res.status(404).json({ success: false, message: 'Jam Room not found. Ask host to share fresh code.' });
     }
     const userId = 'user_' + Math.random().toString(36).substring(2, 9);
     const safeName = (userName || 'Friend').trim().slice(0, 30);
     room.listeners.push({ id: userId, name: safeName, isHost: false, lastPing: Date.now() });
     room.updatedAt = Date.now();
+    saveJamRoomsToDisk();
     res.json({
       success: true,
       roomId: normRoomId,
       userId,
       room: {
         id: normRoomId,
+        hostId: room.hostId,
         hostName: room.hostName,
         currentTrack: room.currentTrack,
         currentTime: room.currentTime,
         isPlaying: room.isPlaying,
-        listenersCount: room.listeners.length
+        listenersCount: Math.max(1, room.listeners.filter(l => Date.now() - l.lastPing < 45000).length)
       }
     });
   } catch (err) {
@@ -1362,22 +1405,44 @@ app.post('/api/jam/join', (req, res) => {
 
 app.post('/api/jam/sync', (req, res) => {
   try {
-    const { roomId, userId, currentTrack, currentTime, isPlaying } = req.body || {};
-    const room = jamRooms.get(roomId);
-    if (!room) {
-      return res.status(404).json({ success: false, message: 'Room not found' });
-    }
-    const listener = room.listeners.find(l => l.id === userId);
-    if (listener) listener.lastPing = Date.now();
+    const { roomId, userId, hostName, currentTrack, currentTime, isPlaying } = req.body || {};
+    const normRoomId = (roomId || '').trim().toUpperCase();
+    if (!normRoomId) return res.status(400).json({ success: false, message: 'Invalid roomId' });
 
-    // Allow host to sync room playback state
+    let room = getJamRoom(normRoomId);
+    // Self-heal on serverless cold start when host syncs
+    if (!room) {
+      room = {
+        id: normRoomId,
+        hostId: userId,
+        hostName: (hostName || 'Host').trim().slice(0, 30),
+        currentTrack: currentTrack || null,
+        currentTime: Number(currentTime) || 0,
+        isPlaying: Boolean(isPlaying),
+        listeners: [{ id: userId, name: hostName || 'Host', isHost: true, lastPing: Date.now() }],
+        updatedAt: Date.now()
+      };
+      jamRooms.set(normRoomId, room);
+    }
+
+    const listener = room.listeners.find(l => l.id === userId);
+    if (listener) {
+      listener.lastPing = Date.now();
+    } else {
+      room.listeners.push({ id: userId, name: hostName || 'Host', isHost: room.hostId === userId, lastPing: Date.now() });
+    }
+
     if (room.hostId === userId || !room.listeners.some(l => l.id === room.hostId)) {
       if (currentTrack !== undefined) room.currentTrack = currentTrack;
       if (currentTime !== undefined) room.currentTime = Number(currentTime);
       if (isPlaying !== undefined) room.isPlaying = Boolean(isPlaying);
       room.updatedAt = Date.now();
     }
-    res.json({ success: true });
+    saveJamRoomsToDisk();
+    res.json({
+      success: true,
+      listenersCount: Math.max(1, room.listeners.filter(l => Date.now() - l.lastPing < 45000).length)
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1385,9 +1450,9 @@ app.post('/api/jam/sync', (req, res) => {
 
 app.get('/api/jam/poll/:roomId', (req, res) => {
   try {
-    const { roomId } = req.params;
+    const normRoomId = (req.params.roomId || '').trim().toUpperCase();
     const { userId } = req.query;
-    const room = jamRooms.get(roomId);
+    const room = getJamRoom(normRoomId);
     if (!room) {
       return res.status(404).json({ success: false, message: 'Room ended' });
     }
@@ -1400,7 +1465,11 @@ app.get('/api/jam/poll/:roomId', (req, res) => {
         room.listeners.push({ id: userId, name: 'Guest', isHost: false, lastPing: now });
       }
     }
-    const activeListeners = room.listeners.filter(l => now - l.lastPing < 35000);
+    const activeListeners = room.listeners.filter(l => now - l.lastPing < 45000);
+    // Estimate live elapsed playback time since last host update
+    const elapsedSec = room.isPlaying ? Math.max(0, (now - room.updatedAt) / 1000) : 0;
+    const liveEstimatedTime = Number(room.currentTime || 0) + (elapsedSec < 12 ? elapsedSec : 0);
+
     res.json({
       success: true,
       room: {
@@ -1408,7 +1477,7 @@ app.get('/api/jam/poll/:roomId', (req, res) => {
         hostId: room.hostId,
         hostName: room.hostName,
         currentTrack: room.currentTrack,
-        currentTime: room.currentTime,
+        currentTime: liveEstimatedTime,
         isPlaying: room.isPlaying,
         updatedAt: room.updatedAt,
         listenersCount: Math.max(1, activeListeners.length)
@@ -1422,7 +1491,8 @@ app.get('/api/jam/poll/:roomId', (req, res) => {
 app.post('/api/jam/leave', (req, res) => {
   try {
     const { roomId, userId } = req.body || {};
-    const room = jamRooms.get(roomId);
+    const normRoomId = (roomId || '').trim().toUpperCase();
+    const room = getJamRoom(normRoomId);
     if (room) {
       room.listeners = room.listeners.filter(l => l.id !== userId);
       if (room.hostId === userId && room.listeners.length > 0) {
@@ -1431,6 +1501,7 @@ app.post('/api/jam/leave', (req, res) => {
         room.listeners[0].isHost = true;
       }
       room.updatedAt = Date.now();
+      saveJamRoomsToDisk();
     }
     res.json({ success: true });
   } catch (err) {
@@ -1446,27 +1517,27 @@ const moodCache = new Map();
 const MOOD_VIBE_QUERIES = {
   workout: {
     title: '⚡ Gym & High-Energy Workout Hits',
-    queries: ['anirudh energetic tamil songs kuthu gym workout', 'marana mass thara local energetic songs tamil']
+    queries: ['anirudh hits', 'vikram songs', 'leo songs', 'jailer songs']
   },
   night_drive: {
     title: '🌙 Late Night Drive Melodies',
-    queries: ['tamil night drive melody songs yuvan harris vibes', 'smooth late night tamil songs']
+    queries: ['yuvan hits', 'harris jayaraj hits', 'tamil melody hits']
   },
   rain: {
     title: '🌧️ Rain & Melancholy Melodies',
-    queries: ['tamil rain melody songs mazhai ilaiyaraaja rahman', 'heartbreak melancholy tamil melodies']
+    queries: ['ilaiyaraaja sad songs', 'ar rahman melody', 'mazhai tamil songs']
   },
   study: {
     title: '📚 Study & Calm Lo-Fi Acoustic Chill',
-    queries: ['tamil acoustic chill lo-fi melody study', 'peaceful calm tamil instrumental melodies']
+    queries: ['tamil lofi', 'ilaiyaraaja instrumental', 'ar rahman bgm', 'tamil melody']
   },
   kuthu: {
     title: '🔥 Thara Local Kuthu & Party Beats',
-    queries: ['thara local kuthu songs tamil dance marana mass', 'fast beat tamil dance songs kuthu']
+    queries: ['tamil kuthu', 'dhanush kuthu songs', 'vijay mass songs']
   },
   romance: {
     title: '💖 Romantic Duets & Love Melodies',
-    queries: ['tamil love romance duets melodies 2024 2025', 'sweet romantic tamil duet songs']
+    queries: ['tamil love songs', 'sid sriram tamil', '2025 tamil romance']
   }
 };
 
@@ -1477,27 +1548,44 @@ app.get('/api/mood/:vibe', async (req, res) => {
 
     if (moodCache.has(vibeKey)) {
       const cached = moodCache.get(vibeKey);
-      if (Date.now() - cached.ts < 2 * 3600 * 1000) {
+      if (cached.data && cached.data.length >= 10 && Date.now() - cached.ts < 2 * 3600 * 1000) {
         return res.json({ success: true, vibe: vibeKey, title: config.title, results: cached.data });
       }
     }
 
-    const q = config.queries[0];
-    const param = `__call=search.getResults&_format=json&cc=in&p=1&n=25&q=${encodeURIComponent(q)}`;
-    const data = await requestSaavn(param);
-    let songs = (data?.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+    const batchResults = await Promise.all(
+      config.queries.slice(0, 3).map(q =>
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(q)}`)
+          .catch(() => null)
+      )
+    );
 
-    if (songs.length === 0 && config.queries[1]) {
-      const p2 = `__call=search.getResults&_format=json&cc=in&p=1&n=25&q=${encodeURIComponent(config.queries[1])}`;
-      const d2 = await requestSaavn(p2);
-      songs = (d2?.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+    const seen = new Set();
+    let songs = [];
+    for (const data of batchResults) {
+      const items = (data?.results || []).map(formatSongItem).filter(s => s && s.playUrl);
+      for (const s of items) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          songs.push(s);
+        }
+      }
     }
 
-    if (songs.length === 0) {
-      songs = cachedCuratedShelves?.flatMap(s => s.songs || []).slice(0, 20) || [];
+    if (songs.length < 5) {
+      const fallbackSongs = cachedCuratedShelves?.flatMap(s => s.songs || []) || [];
+      for (const s of fallbackSongs) {
+        if (s && s.playUrl && !seen.has(s.id)) {
+          seen.add(s.id);
+          songs.push(s);
+        }
+      }
     }
 
-    moodCache.set(vibeKey, { ts: Date.now(), data: songs });
+    songs = songs.slice(0, 24);
+    if (songs.length > 0) {
+      moodCache.set(vibeKey, { ts: Date.now(), data: songs });
+    }
     res.json({ success: true, vibe: vibeKey, title: config.title, results: songs });
   } catch (err) {
     console.error('Mood API error:', err);
@@ -1510,81 +1598,158 @@ app.get('/api/mood/:vibe', async (req, res) => {
 // ==========================================
 const TAMIL_FM_STATIONS = [
   {
-    id: 'suryan_fm',
-    name: 'Suryan FM 93.5',
-    tagline: 'Kadhula Thappa Pannaadhe! • Superhit Tamil Songs',
-    streamUrl: 'https://stream.zeno.fm/f3wvbbqmdg8uv',
+    id: 'tamil_894_fm',
+    name: '89.4 Tamil FM (Live)',
+    tagline: 'Non-Stop Live Tamil FM Broadcast • Chartbusters',
+    streamUrl: 'https://centova.aarenworld.com/proxy/894tamilfm/stream',
     logo: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=500&h=500&fit=crop',
     color: '#ff6600',
-    category: 'Commercial Hits'
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
   },
   {
-    id: 'radio_mirchi',
-    name: 'Radio Mirchi 98.3 Tamil',
-    tagline: 'Mirchi Semma Hot Machi! • Trending Chartbusters',
-    streamUrl: 'https://stream.zeno.fm/u5d0xev7q78uv',
+    id: 'shakthi_fm',
+    name: 'Shakthi FM 105.1 (Live)',
+    tagline: 'Superhit Tamil FM Live • High-Energy Hits',
+    streamUrl: 'https://mbc.thestreamtech.com:8086/stream',
     logo: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop',
     color: '#e60000',
-    category: 'Top 40 Trending'
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'vanavil_fm',
+    name: 'Vanavil FM Radio (Live)',
+    tagline: 'Maestro Classics & Tamil Melodies 24x7',
+    streamUrl: 'https://s7.yesstreaming.net:8092/stream',
+    logo: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&h=500&fit=crop',
+    color: '#8b5cf6',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'tamil_ragam',
+    name: 'Tamil Ragam FM (Live)',
+    tagline: 'Pure Tamil Melodies & Evergreen Duets',
+    streamUrl: 'https://cast4.asurahosting.com/proxy/neville/stream',
+    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
+    color: '#10b981',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'vagai_tamil_fm',
+    name: 'Vagai Tamil FM (Live)',
+    tagline: 'Live RJ Shows & Fresh Tamil Hits',
+    streamUrl: 'https://vtfm2020-vtfm.radioca.st/stream',
+    logo: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500&h=500&fit=crop',
+    color: '#06b6d4',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'friends_tamil_fm',
+    name: 'Friends Tamil FM (Live)',
+    tagline: 'Top Request Tamil Hits • Listener Choice',
+    streamUrl: 'https://usa15.fastcast4u.com/proxy/tammus00?mp=/;',
+    logo: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&h=500&fit=crop',
+    color: '#eab308',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
   },
   {
     id: 'ilaiyaraaja_247',
-    name: 'Maestro Ilaiyaraaja 24x7',
-    tagline: 'Timeless Maestro Classics • Golden 80s & 90s',
-    streamUrl: 'https://stream.zeno.fm/4w9ptv22n08uv',
-    logo: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&h=500&fit=crop',
-    color: '#8b5cf6',
-    category: 'Golden Melodies'
+    name: 'Ilaiyaraaja 24x7 Radio',
+    tagline: 'Endless Maestro Classics • 320k Auto-Queue',
+    query: 'ilaiyaraaja 80s 90s tamil',
+    logo: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&h=500&fit=crop',
+    color: '#a855f7',
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   },
   {
     id: 'spb_immortal',
-    name: 'SPB Evergreen Radio',
-    tagline: 'Tribute to S.P. Balasubrahmanyam • Immortal Voice',
-    streamUrl: 'https://stream.zeno.fm/s4958uv6m38uv',
-    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
+    name: 'SPB Evergreen 24x7',
+    tagline: 'Endless Tribute to S.P. Balasubrahmanyam',
+    query: 'spb evergreen tamil melodies',
+    logo: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=500&h=500&fit=crop',
     color: '#3b82f6',
-    category: 'Classic Legends'
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   },
   {
     id: 'ar_rahman_247',
     name: 'A.R. Rahman Magic 24x7',
-    tagline: 'Isaipuyal Masterpieces • Oscars & Cinema Anthems',
-    streamUrl: 'https://stream.zeno.fm/m9p0qvd9q78uv',
-    logo: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500&h=500&fit=crop',
+    tagline: 'Endless Isaipuyal Masterpieces in 320k',
+    query: 'ar rahman tamil hits',
+    logo: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&h=500&fit=crop',
     color: '#06b6d4',
-    category: 'Composer Showcase'
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   },
   {
     id: 'anirudh_party_hits',
     name: 'Anirudh Rock Hits 24x7',
-    tagline: 'Rockstar Ani Energetic Bangers • Marana Mass Beats',
-    streamUrl: 'https://stream.zeno.fm/7x35w7c4m38uv',
-    logo: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&h=500&fit=crop',
-    color: '#eab308',
-    category: 'High Energy'
+    tagline: 'Non-Stop Rockstar Ani Bangers',
+    query: 'anirudh tamil hits',
+    logo: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&h=500&fit=crop',
+    color: '#f59e0b',
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   },
   {
     id: 'yuvan_vibes',
-    name: 'Yuvan Shankar Raja Vibes',
-    tagline: 'U1 Drug Melodies • BGM & Nostalgia Melodies',
-    streamUrl: 'https://stream.zeno.fm/4621k63pn38uv',
-    logo: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&h=500&fit=crop',
+    name: 'Yuvan Shankar Raja 24x7',
+    tagline: 'Non-Stop U1 Drug Melodies & BGM',
+    query: 'yuvan shankar raja hits',
+    logo: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&h=500&fit=crop',
     color: '#ec4899',
-    category: 'Emotional Vibes'
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   },
   {
     id: 'vidyasagar_melodies',
-    name: 'Vidyasagar Melody Express',
-    tagline: 'Heart-touching 90s & 2000s Sweet Melodies',
-    streamUrl: 'https://stream.zeno.fm/q08q8r9qn38uv',
-    logo: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&h=500&fit=crop',
-    color: '#10b981',
-    category: 'Sweet Melodies'
+    name: 'Vidyasagar Melodies 24x7',
+    tagline: 'Endless 90s & 2000s Sweet Tamil Melodies',
+    query: 'vidyasagar tamil hits',
+    logo: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&h=500&fit=crop',
+    color: '#22c55e',
+    category: '320k Artist Radio',
+    type: 'artist_radio'
   }
 ];
 
 app.get('/api/radio/stations', (req, res) => {
   res.json({ success: true, stations: TAMIL_FM_STATIONS });
+});
+
+// Lightweight CORS Image Proxy (for PiP canvas album artwork without CORS taint)
+app.get('/api/proxy-image', (req, res) => {
+  const imgUrl = req.query.url;
+  if (!imgUrl || !imgUrl.startsWith('http')) {
+    return res.status(400).end();
+  }
+  try {
+    const parsed = new URL(imgUrl);
+    const mod = parsed.protocol === 'http:' ? http : https;
+    const imgReq = mod.get({
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
+      path: parsed.pathname + parsed.search,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    }, (imgRes) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      if (imgRes.headers['content-type']) {
+        res.setHeader('Content-Type', imgRes.headers['content-type']);
+      }
+      res.writeHead(imgRes.statusCode || 200);
+      imgRes.pipe(res);
+    });
+    imgReq.on('error', () => { if (!res.headersSent) res.status(502).end(); });
+  } catch (e) {
+    res.status(400).end();
+  }
 });
 
 // In-memory lyrics cache to prevent rate-limiting and maximize speed

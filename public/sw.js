@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v36 — 6 Elite Features: Jam Room, Mood Matcher, PiP Player, Soundscapes, Live FM, Batch Offline
-const CACHE_NAME = 'music-app-v36';
+// MUSIC - Service Worker v37 — Fix All 6 Elite Features (Modals, Mobile UI, Live FM Streams, PiP Fallback, Mood Multi-Query, Offline Tab)
+const CACHE_NAME = 'music-app-v37';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
