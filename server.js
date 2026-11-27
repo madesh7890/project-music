@@ -1608,22 +1608,22 @@ app.get('/api/mood/:vibe', async (req, res) => {
 // ==========================================
 const TAMIL_FM_STATIONS = [
   {
-    id: 'tamizen_fm',
-    name: 'Tamizen Tamil FM (Live)',
-    tagline: '24/7 Live Tamil Hits & Cinema Chartbusters',
-    streamUrl: 'https://c34.radioboss.fm:18023/stream',
-    fallbackQuery: 'tamil latest hits',
+    id: 'suryan_fm',
+    name: 'Suryan FM 93.5 (Live)',
+    tagline: 'Tamil Nadu\'s #1 FM • Non-Stop Live Superhits',
+    streamUrl: 'https://stream.zeno.fm/0r0xa792kwzuv',
+    fallbackQuery: 'tamil latest chartbusters 2024 2025',
     logo: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=500&h=500&fit=crop',
     color: '#ff6600',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
   {
-    id: 'british_tamil_fm',
-    name: 'British Indian Tamil Radio (Live)',
-    tagline: 'Crystal Clear AAC Live • Tamil Melodies & Kuthu',
-    streamUrl: 'https://hello.citrus3.com:2020/stream/britishindiantamilradio',
-    fallbackQuery: 'tamil superhits',
+    id: 'radio_mirchi_tamil',
+    name: 'Radio Mirchi 98.3 (Live)',
+    tagline: 'Mirchi Semma Hot! • Trending Chartbusters Live',
+    streamUrl: 'https://stream.zeno.fm/vqnq7muk4x8uv',
+    fallbackQuery: 'mirchi top 20 tamil hits',
     logo: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop',
     color: '#e60000',
     category: 'Live FM Broadcast',
@@ -1634,7 +1634,7 @@ const TAMIL_FM_STATIONS = [
     name: 'Shakthi FM 105.1 (Live)',
     tagline: 'Superhit Tamil FM Live • High-Energy Hits',
     streamUrl: 'https://mbc.thestreamtech.com:8086/stream',
-    fallbackQuery: 'anirudh tamil hits',
+    fallbackQuery: 'anirudh thara local kuthu hits',
     logo: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&h=500&fit=crop',
     color: '#ef4444',
     category: 'Live FM Broadcast',
@@ -1643,32 +1643,32 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'tamil_894_fm',
     name: '89.4 Tamil FM (Live)',
-    tagline: 'Non-Stop Live Tamil FM Broadcast • Chartbusters',
+    tagline: 'Non-Stop Live Tamil Broadcast • Chartbusters',
     streamUrl: 'https://centova.aarenworld.com/proxy/894tamilfm/stream',
-    fallbackQuery: '2025 tamil hits',
+    fallbackQuery: '2024 2025 tamil hits kuthu mass',
     logo: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&h=500&fit=crop',
     color: '#f97316',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
   {
-    id: 'vanavil_fm',
-    name: 'Vanavil FM Radio (Live)',
-    tagline: 'Maestro Classics & Tamil Melodies 24x7',
-    streamUrl: 'https://s7.yesstreaming.net:8092/stream',
-    fallbackQuery: 'ilaiyaraaja tamil hits',
-    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
+    id: 'hello_fm',
+    name: 'Hello FM 106.4 (Live)',
+    tagline: 'Oru Varthai Pesida • Non-Stop Tamil Melodies',
+    streamUrl: 'https://stream.zeno.fm/scnywte9p7zuv',
+    fallbackQuery: 'tamil sweet love melodies',
+    logo: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500&h=500&fit=crop',
     color: '#8b5cf6',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
   {
-    id: 'tamil_ragam',
-    name: 'Tamil Ragam FM (Live)',
-    tagline: 'Pure Tamil Melodies & Evergreen Duets',
-    streamUrl: 'https://cast4.asurahosting.com/proxy/neville/stream',
-    fallbackQuery: 'tamil love melodies',
-    logo: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500&h=500&fit=crop',
+    id: 'ibc_tamil_radio',
+    name: 'IBC Tamil Radio (Live)',
+    tagline: 'Global Tamil Live Broadcast • News & Melodies 24x7',
+    streamUrl: 'https://stream.zeno.fm/m4mqu3fq354uv',
+    fallbackQuery: 'ilaiyaraaja spb evergreen tamil songs',
+    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
     color: '#10b981',
     category: 'Live FM Broadcast',
     type: 'live_stream'
@@ -1737,6 +1737,91 @@ const TAMIL_FM_STATIONS = [
 
 app.get('/api/radio/stations', (req, res) => {
   res.json({ success: true, stations: TAMIL_FM_STATIONS });
+});
+
+// ─── FM Stream Proxy (HTTP → HTTPS bridge for live radio) ───────────────────
+// Allows HTTPS Vercel app to stream HTTP-only Tamil radio URLs safely
+app.get('/api/proxy-fm', (req, res) => {
+  const rawUrl = req.query.url;
+  if (!rawUrl) return res.status(400).json({ error: 'Missing url param' });
+
+  let streamUrl;
+  try { streamUrl = new URL(rawUrl); } catch (e) { return res.status(400).json({ error: 'Invalid URL' }); }
+
+  // Safety: only allow known audio stream hosts
+  const ALLOWED_HOSTS = [
+    '163.172.158.94', '104.238.193.114', 'media2.lankasri.fm',
+    'stream.zeno.fm', 'listen.shoutcast.com', 'ic1.sslstream.com'
+  ];
+  if (!ALLOWED_HOSTS.some(h => streamUrl.hostname.includes(h))) {
+    return res.status(403).json({ error: 'Host not allowed' });
+  }
+
+  const protocol = streamUrl.protocol === 'https:' ? require('https') : http;
+  const options = {
+    hostname: streamUrl.hostname,
+    port: streamUrl.port || (streamUrl.protocol === 'https:' ? 443 : 80),
+    path: streamUrl.pathname + streamUrl.search,
+    headers: {
+      'User-Agent': 'TamilMusicApp/2.0 (Icecast Client)',
+      'Icy-MetaData': '0',
+      'Accept': 'audio/mpeg, audio/aac, audio/*, */*'
+    },
+    timeout: 8000
+  };
+
+  const proxyReq = protocol.get(options, (upstream) => {
+    if (upstream.statusCode >= 400) {
+      return res.status(upstream.statusCode).json({ error: 'Upstream error' });
+    }
+    res.setHeader('Content-Type', upstream.headers['content-type'] || 'audio/mpeg');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    upstream.pipe(res);
+    req.on('close', () => { upstream.destroy(); });
+  });
+  proxyReq.on('error', (err) => {
+    console.warn('[proxy-fm] upstream error:', err.message);
+    if (!res.headersSent) res.status(502).json({ error: 'Upstream unreachable' });
+  });
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) res.status(504).json({ error: 'Upstream timeout' });
+  });
+});
+
+// ─── FM Stream Health Check ──────────────────────────────────────────────────
+app.get('/api/check-stream', async (req, res) => {
+  const rawUrl = req.query.url;
+  if (!rawUrl) return res.status(400).json({ ok: false, error: 'Missing url' });
+
+  try {
+    const streamUrl = new URL(rawUrl);
+    const protocol = streamUrl.protocol === 'https:' ? require('https') : http;
+    const options = {
+      hostname: streamUrl.hostname,
+      port: streamUrl.port || (streamUrl.protocol === 'https:' ? 443 : 80),
+      path: streamUrl.pathname + streamUrl.search,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'TamilMusicApp/2.0 StreamChecker',
+        'Range': 'bytes=0-1023'
+      },
+      timeout: 6000
+    };
+    const checkReq = protocol.request(options, (upstream) => {
+      const ok = upstream.statusCode < 400;
+      upstream.destroy();
+      checkReq.destroy();
+      return res.json({ ok, status: upstream.statusCode, contentType: upstream.headers['content-type'] || '' });
+    });
+    checkReq.on('error', () => res.json({ ok: false, error: 'connect_failed' }));
+    checkReq.on('timeout', () => { checkReq.destroy(); res.json({ ok: false, error: 'timeout' }); });
+    checkReq.end();
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // Dedicated Fast Full-Discography Artist 24x7 Radio Endpoint (verified composer catalog + multi-query + pagination)

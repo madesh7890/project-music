@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v39 — Strict Composer 24x7 Radio, Confirmed Movie-First Up Next, Native Live FM Audio
-const CACHE_NAME = 'music-app-v39';
+// MUSIC - Service Worker v40 — Live Tamil FM anti-cache sync, instant 4.2s fallback & zero-stale stream engine
+const CACHE_NAME = 'music-app-v40';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -995,6 +995,12 @@ class MusicApp {
     const handlePlayPause = () => {
       if (this.currentSong?.isRadio && this.radioAudio) {
         if (this.radioAudio.paused) {
+          // Re-sync to live broadcast on air right now instead of playing old buffered seconds
+          if (this.currentFmStation?.streamUrl) {
+            const sep = this.currentFmStation.streamUrl.includes('?') ? '&' : '?';
+            this.radioAudio.src = `${this.currentFmStation.streamUrl}${sep}_live=${Date.now()}`;
+            this.radioAudio.load();
+          }
           this.radioAudio.play().then(() => {
             this.isPlaying = true;
             this.updatePlayStateUI();
@@ -1921,7 +1927,7 @@ class MusicApp {
     }
 
     this.currentSong = song;
-    if (!song._artistRadioId) {
+    if (!song._artistRadioId && !song._fmStationId) {
       this._activeArtistRadioId = null;
       this._artistRadioPage = 1;
       this.currentFmStation = null;
@@ -5944,18 +5950,20 @@ class MusicApp {
   }
 
   async playFmStation(station) {
+    // 1. Toggle pause if tapping currently playing station
+    if (this.currentFmStation?.id === station.id && this.isPlaying) {
+      const activeAudio = station.type === 'live_stream' ? this.radioAudio : this.audio;
+      if (activeAudio && !activeAudio.paused) {
+        activeAudio.pause();
+        this.isPlaying = false;
+        this.updatePlayStateUI();
+        this.loadFmRadioStations();
+        return;
+      }
+    }
+
     this._stopRadioAudio();
     const sessionToken = this._fmSessionToken;
-
-    // Toggle pause if tapping currently playing station
-    const activeAudio = station.type === 'live_stream' ? this.radioAudio : this.audio;
-    if (this.currentFmStation?.id === station.id && this.isPlaying && activeAudio && !activeAudio.paused) {
-      activeAudio.pause();
-      this.isPlaying = false;
-      this.updatePlayStateUI();
-      this.loadFmRadioStations();
-      return;
-    }
 
     // 1. Artist 24x7 Radio (Full Discography Collection via /api/radio/artist/:id)
     if (station.type === 'artist_radio') {
@@ -6028,7 +6036,8 @@ class MusicApp {
         const data = await res.json();
         if (data.success && Array.isArray(data.results) && data.results.length > 0) {
           this.setSmartRadioActive && this.setSmartRadioActive(true, false);
-          this.playSong(data.results[0], data.results, 0, { preserveQueue: true });
+          const tagged = data.results.map(t => ({ ...t, _fmStationId: station.id }));
+          this.playSong(tagged[0], tagged, 0, { preserveQueue: true });
           this.currentFmStation = station;
           this.loadFmRadioStations();
         }
@@ -6037,7 +6046,11 @@ class MusicApp {
 
     if (this.radioAudio) {
       this.radioAudio.volume = parseFloat(this.volumeSlider?.value) || 0.90;
-      this.radioAudio.src = station.streamUrl;
+      // Live anti-cache query param ensures fresh streaming connection and bypasses old finished broadcast caches
+      const sep = station.streamUrl.includes('?') ? '&' : '?';
+      const liveStreamUrl = `${station.streamUrl}${sep}_live=${Date.now()}`;
+      this.radioAudio.src = liveStreamUrl;
+      this.radioAudio.currentTime = 0;
       this.radioAudio.load();
       this._updateLiveRadioPlayerUI(fakeSong);
       this.showToast(`📡 Connecting live to ${station.name}...`);
@@ -6062,12 +6075,12 @@ class MusicApp {
         }
       };
 
-      // If remote Shoutcast takes > 6.5s to start playing, cleanly stop stream & launch curated 320k hits fallback
+      // Fast 4.2s connection timeout: if remote broadcast is dead/unreachable, immediately fallback to curated 320k hits
       this._fmFallbackTimer = setTimeout(() => {
         if (!started && sessionToken === this._fmSessionToken && this.currentFmStation?.id === station.id) {
           launchStationFallback('connect_timeout');
         }
-      }, 6500);
+      }, 4200);
 
       this.radioAudio.play().catch(err => {
         if (!started) {
