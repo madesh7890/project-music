@@ -1642,6 +1642,8 @@
 
   <!-- Audio Element with CORS enabled for Web Audio DSP effects -->
   <audio id="audioElement" preload="auto" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+  <!-- Dedicated Native Live Radio Audio Element (bypasses Web Audio CORS lock for Shoutcast/Icecast FM) -->
+  <audio id="radioAudioElement" preload="none" playsinline webkit-playsinline></audio>
 
   <!-- Notification Toast -->
   <div class="toast" id="toast"></div>

@@ -240,8 +240,8 @@ function getHDImage(imgUrl) {
 }
 
 // Native HTTPS helper forcing IPv4 to prevent Windows timeout issues
-function requestSaavn(queryParamStr) {
-  return new Promise((resolve, reject) => {
+function requestSaavn(queryParamStr, timeoutMs = 8000) {
+  return new Promise((resolve) => {
     const fullUrl = `https://www.jiosaavn.com/api.php?${queryParamStr}`;
     const req = https.get(fullUrl, {
       family: 4, // Force IPv4
@@ -252,7 +252,7 @@ function requestSaavn(queryParamStr) {
         'Referer': 'https://www.jiosaavn.com/',
         'Cookie': 'L=tamil,malayalam,telugu,hindi,english;'
       },
-      timeout: 10000
+      timeout: timeoutMs
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -288,8 +288,16 @@ function formatSongItem(raw) {
   const id = raw.id || raw.songid;
   const songName = decodeHtml(raw.song || raw.title || raw.name);
   const albumName = decodeHtml(raw.album || raw.more_info?.album || '');
-  const primaryArtists = decodeHtml(raw.primary_artists || raw.more_info?.artistMap?.primary_artists?.map(a => a.name).join(', ') || raw.singers || raw.music || '');
-  const musicDirector = decodeHtml(raw.music || raw.more_info?.music || '');
+  const artistMapPrimary = Array.isArray(raw.more_info?.artistMap?.primary_artists)
+    ? raw.more_info.artistMap.primary_artists.map(a => a.name).filter(Boolean).join(', ')
+    : '';
+  const artistMapMusic = Array.isArray(raw.more_info?.artistMap?.music)
+    ? raw.more_info.artistMap.music.map(a => a.name).filter(Boolean).join(', ')
+    : '';
+  const primaryArtists = decodeHtml(
+    raw.primary_artists || artistMapPrimary || raw.singers || raw.more_info?.singers || raw.music || artistMapMusic || ''
+  );
+  const musicDirector = decodeHtml(raw.music || raw.more_info?.music || artistMapMusic || '');
   const year = raw.year || raw.more_info?.year || '';
   const language = (raw.language || raw.more_info?.language || 'tamil').toLowerCase();
   const duration = parseInt(raw.duration || raw.more_info?.duration || '240', 10);
@@ -301,11 +309,13 @@ function formatSongItem(raw) {
   const rawImage = raw.image || raw.more_info?.image;
   const imageHD = getHDImage(rawImage);
   const imageLow = rawImage ? rawImage.replace('50x50', '150x150').replace('http://', 'https://') : imageHD;
+  const albumId = raw.albumid || raw.more_info?.album_id || '';
 
   return {
     id,
     title: songName,
     album: albumName,
+    albumId,
     artist: primaryArtists,
     music: musicDirector,
     year,
@@ -334,10 +344,10 @@ function normalizeSongTitle(str) {
 }
 
 // Helper: fetch all songs from a specific Saavn album with media stream decryption
-async function fetchSongsFromAlbum(albId, albInfo = null) {
+async function fetchSongsFromAlbum(albId, albInfo = null, timeoutMs = 8000) {
   if (!albId) return [];
   try {
-    const details = await requestSaavn(`__call=content.getAlbumDetails&_format=json&cc=in&albumid=${albId}`);
+    const details = await requestSaavn(`__call=content.getAlbumDetails&_format=json&cc=in&albumid=${albId}`, timeoutMs);
     const songList = details?.songs || details?.list;
     if (songList && Array.isArray(songList)) {
       const results = [];
@@ -362,10 +372,10 @@ async function fetchSongsFromAlbum(albId, albInfo = null) {
 }
 
 // Helper: fetch all songs from a specific Saavn playlist
-async function fetchSongsFromPlaylist(listId) {
+async function fetchSongsFromPlaylist(listId, timeoutMs = 8000) {
   if (!listId) return [];
   try {
-    const data = await requestSaavn(`__call=playlist.getDetails&_format=json&cc=in&listid=${listId}`);
+    const data = await requestSaavn(`__call=playlist.getDetails&_format=json&cc=in&listid=${listId}`, timeoutMs);
     if (data && data.songs && Array.isArray(data.songs)) {
       return data.songs.map(formatSongItem).filter(s => s && s.playUrl);
     }
@@ -376,10 +386,10 @@ async function fetchSongsFromPlaylist(listId) {
 }
 
 // Helper: fetch top songs from an artist's catalog
-async function fetchSongsFromArtist(artistId, count = 25) {
+async function fetchSongsFromArtist(artistId, count = 25, timeoutMs = 8000) {
   if (!artistId) return [];
   try {
-    const data = await requestSaavn(`__call=artist.getArtistPageDetails&_format=json&cc=in&artistId=${artistId}&n_song=${count}`);
+    const data = await requestSaavn(`__call=artist.getArtistPageDetails&_format=json&cc=in&artistId=${artistId}&n_song=${count}`, timeoutMs);
     const songs = data?.topSongs?.songs || (Array.isArray(data?.topSongs) ? data.topSongs : []);
     return songs.map(formatSongItem).filter(s => s && s.playUrl);
   } catch (e) {
@@ -953,7 +963,7 @@ const CATEGORIES = [
     id: 'spb_chithra',
     title: '💖 SPB & K.S. Chithra Melodies',
     subtitle: 'Immortal romantic duets from the golden era',
-    query: 'SPB Janaki Tamil Evergreen Duet'
+    query: 'S.P. Balasubrahmanyam Tamil Hits'
   },
   {
     id: 'anirudh_party',
@@ -1555,7 +1565,7 @@ app.get('/api/mood/:vibe', async (req, res) => {
 
     const batchResults = await Promise.all(
       config.queries.slice(0, 3).map(q =>
-        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(q)}`)
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=12&q=${encodeURIComponent(q)}`, 4500)
           .catch(() => null)
       )
     );
@@ -1598,12 +1608,24 @@ app.get('/api/mood/:vibe', async (req, res) => {
 // ==========================================
 const TAMIL_FM_STATIONS = [
   {
-    id: 'tamil_894_fm',
-    name: '89.4 Tamil FM (Live)',
-    tagline: 'Non-Stop Live Tamil FM Broadcast • Chartbusters',
-    streamUrl: 'https://centova.aarenworld.com/proxy/894tamilfm/stream',
+    id: 'tamizen_fm',
+    name: 'Tamizen Tamil FM (Live)',
+    tagline: '24/7 Live Tamil Hits & Cinema Chartbusters',
+    streamUrl: 'https://c34.radioboss.fm:18023/stream',
+    fallbackQuery: 'tamil latest hits',
     logo: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=500&h=500&fit=crop',
     color: '#ff6600',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'british_tamil_fm',
+    name: 'British Indian Tamil Radio (Live)',
+    tagline: 'Crystal Clear AAC Live • Tamil Melodies & Kuthu',
+    streamUrl: 'https://hello.citrus3.com:2020/stream/britishindiantamilradio',
+    fallbackQuery: 'tamil superhits',
+    logo: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop',
+    color: '#e60000',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
@@ -1612,8 +1634,20 @@ const TAMIL_FM_STATIONS = [
     name: 'Shakthi FM 105.1 (Live)',
     tagline: 'Superhit Tamil FM Live • High-Energy Hits',
     streamUrl: 'https://mbc.thestreamtech.com:8086/stream',
-    logo: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&h=500&fit=crop',
-    color: '#e60000',
+    fallbackQuery: 'anirudh tamil hits',
+    logo: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&h=500&fit=crop',
+    color: '#ef4444',
+    category: 'Live FM Broadcast',
+    type: 'live_stream'
+  },
+  {
+    id: 'tamil_894_fm',
+    name: '89.4 Tamil FM (Live)',
+    tagline: 'Non-Stop Live Tamil FM Broadcast • Chartbusters',
+    streamUrl: 'https://centova.aarenworld.com/proxy/894tamilfm/stream',
+    fallbackQuery: '2025 tamil hits',
+    logo: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&h=500&fit=crop',
+    color: '#f97316',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
@@ -1622,7 +1656,8 @@ const TAMIL_FM_STATIONS = [
     name: 'Vanavil FM Radio (Live)',
     tagline: 'Maestro Classics & Tamil Melodies 24x7',
     streamUrl: 'https://s7.yesstreaming.net:8092/stream',
-    logo: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500&h=500&fit=crop',
+    fallbackQuery: 'ilaiyaraaja tamil hits',
+    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
     color: '#8b5cf6',
     category: 'Live FM Broadcast',
     type: 'live_stream'
@@ -1632,36 +1667,17 @@ const TAMIL_FM_STATIONS = [
     name: 'Tamil Ragam FM (Live)',
     tagline: 'Pure Tamil Melodies & Evergreen Duets',
     streamUrl: 'https://cast4.asurahosting.com/proxy/neville/stream',
-    logo: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=500&h=500&fit=crop',
-    color: '#10b981',
-    category: 'Live FM Broadcast',
-    type: 'live_stream'
-  },
-  {
-    id: 'vagai_tamil_fm',
-    name: 'Vagai Tamil FM (Live)',
-    tagline: 'Live RJ Shows & Fresh Tamil Hits',
-    streamUrl: 'https://vtfm2020-vtfm.radioca.st/stream',
+    fallbackQuery: 'tamil love melodies',
     logo: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500&h=500&fit=crop',
-    color: '#06b6d4',
-    category: 'Live FM Broadcast',
-    type: 'live_stream'
-  },
-  {
-    id: 'friends_tamil_fm',
-    name: 'Friends Tamil FM (Live)',
-    tagline: 'Top Request Tamil Hits • Listener Choice',
-    streamUrl: 'https://usa15.fastcast4u.com/proxy/tammus00?mp=/;',
-    logo: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&h=500&fit=crop',
-    color: '#eab308',
+    color: '#10b981',
     category: 'Live FM Broadcast',
     type: 'live_stream'
   },
   {
     id: 'ilaiyaraaja_247',
     name: 'Ilaiyaraaja 24x7 Radio',
-    tagline: 'Endless Maestro Classics • 320k Auto-Queue',
-    query: 'ilaiyaraaja 80s 90s tamil',
+    tagline: 'Full Maestro Classics • 40+ Songs Auto-Queue',
+    query: 'ilaiyaraaja tamil',
     logo: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=500&h=500&fit=crop',
     color: '#a855f7',
     category: '320k Artist Radio',
@@ -1670,8 +1686,8 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'spb_immortal',
     name: 'SPB Evergreen 24x7',
-    tagline: 'Endless Tribute to S.P. Balasubrahmanyam',
-    query: 'spb evergreen tamil melodies',
+    tagline: 'Full S.P. Balasubrahmanyam Golden Collection',
+    query: 'spb tamil',
     logo: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=500&h=500&fit=crop',
     color: '#3b82f6',
     category: '320k Artist Radio',
@@ -1680,8 +1696,8 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'ar_rahman_247',
     name: 'A.R. Rahman Magic 24x7',
-    tagline: 'Endless Isaipuyal Masterpieces in 320k',
-    query: 'ar rahman tamil hits',
+    tagline: 'Full Isaipuyal Masterpieces in 320k',
+    query: 'ar rahman tamil',
     logo: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=500&h=500&fit=crop',
     color: '#06b6d4',
     category: '320k Artist Radio',
@@ -1690,8 +1706,8 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'anirudh_party_hits',
     name: 'Anirudh Rock Hits 24x7',
-    tagline: 'Non-Stop Rockstar Ani Bangers',
-    query: 'anirudh tamil hits',
+    tagline: 'Full Rockstar Ani Blockbusters Collection',
+    query: 'anirudh tamil',
     logo: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&h=500&fit=crop',
     color: '#f59e0b',
     category: '320k Artist Radio',
@@ -1700,8 +1716,8 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'yuvan_vibes',
     name: 'Yuvan Shankar Raja 24x7',
-    tagline: 'Non-Stop U1 Drug Melodies & BGM',
-    query: 'yuvan shankar raja hits',
+    tagline: 'Full U1 Melodies, Mass & BGM Hits',
+    query: 'yuvan tamil',
     logo: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500&h=500&fit=crop',
     color: '#ec4899',
     category: '320k Artist Radio',
@@ -1710,8 +1726,8 @@ const TAMIL_FM_STATIONS = [
   {
     id: 'vidyasagar_melodies',
     name: 'Vidyasagar Melodies 24x7',
-    tagline: 'Endless 90s & 2000s Sweet Tamil Melodies',
-    query: 'vidyasagar tamil hits',
+    tagline: 'Full 90s & 2000s Sweet Tamil Melodies',
+    query: 'vidyasagar tamil',
     logo: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=500&h=500&fit=crop',
     color: '#22c55e',
     category: '320k Artist Radio',
@@ -1721,6 +1737,364 @@ const TAMIL_FM_STATIONS = [
 
 app.get('/api/radio/stations', (req, res) => {
   res.json({ success: true, stations: TAMIL_FM_STATIONS });
+});
+
+// Dedicated Fast Full-Discography Artist 24x7 Radio Endpoint (verified composer catalog + multi-query + pagination)
+const artistRadioCache = new Map();
+const ARTIST_RADIO_CONFIG = {
+  ilaiyaraaja_247: {
+    name: 'Ilaiyaraaja 24x7 Radio',
+    artistId: '456269',
+    playlists: ['827647904', '743037878'],
+    trustedShelves: ['ilayaraja_gold'],
+    queries: ['ilaiyaraaja tamil hits', 'ilaiyaraaja 80s tamil', 'ilaiyaraaja 90s melodies', 'ilaiyaraaja evergreen tamil'],
+    matchTokens: ['ilaiya', 'ilayaraja', 'ilaiyaraja', 'isaignani']
+  },
+  spb_immortal: {
+    name: 'SPB Evergreen 24x7',
+    artistId: '455322',
+    playlists: ['826526781'],
+    trustedShelves: [],
+    queries: ['spb tamil hits', 's.p. balasubrahmanyam tamil', 'spb evergreen melodies tamil', 'spb love songs tamil'],
+    matchTokens: ['balasubrahmanyam', 'balasubramaniam', 'balasubramanyam', 's.p.b', 'spb']
+  },
+  ar_rahman_247: {
+    name: 'A.R. Rahman Magic 24x7',
+    artistId: '456262',
+    playlists: [],
+    trustedShelves: ['ar_rahman_magic'],
+    queries: ['a r rahman tamil hits', 'ar rahman 90s tamil', 'ar rahman evergreen tamil', 'ar rahman melodies tamil'],
+    matchTokens: ['rahman']
+  },
+  anirudh_party_hits: {
+    name: 'Anirudh Rock Hits 24x7',
+    artistId: '459633',
+    playlists: [],
+    trustedShelves: ['anirudh_party'],
+    queries: ['anirudh ravichander tamil', 'anirudh tamil hits', 'anirudh kuthu songs', 'anirudh melodies tamil'],
+    matchTokens: ['anirudh']
+  },
+  yuvan_vibes: {
+    name: 'Yuvan Shankar Raja 24x7',
+    artistId: '455792',
+    playlists: [],
+    trustedShelves: [],
+    queries: ['yuvan shankar raja tamil', 'yuvan tamil hits', 'yuvan love songs tamil', 'yuvan melodies tamil'],
+    matchTokens: ['yuvan']
+  },
+  vidyasagar_melodies: {
+    name: 'Vidyasagar Melodies 24x7',
+    artistId: '455132',
+    playlists: [],
+    trustedShelves: [],
+    queries: ['vidyasagar tamil hits', 'vidyasagar melodies tamil', 'vidyasagar evergreen tamil', 'ghilli tamil songs'],
+    matchTokens: ['vidyasagar']
+  }
+};
+
+function shuffleList(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function isTrackNoiseForTamilRadio(s) {
+  const text = `${s.title || ''} ${s.album || ''} ${s.artist || ''}`.toLowerCase();
+  return /\b(hanuman chalisa|divine melodies|bhajan|aarti|gayatri mantra|stotra|karaoke)\b/i.test(text);
+}
+
+app.get('/api/radio/artist/:id', async (req, res) => {
+  try {
+    const id = (req.params.id || '').trim();
+    const page = Math.max(1, Math.min(5, parseInt(req.query.page || '1', 10) || 1));
+    const config = ARTIST_RADIO_CONFIG[id];
+    if (!config) {
+      return res.status(404).json({ success: false, message: 'Artist radio channel not found' });
+    }
+
+    const cacheKey = `${id}_p${page}`;
+    const cached = artistRadioCache.get(cacheKey);
+    if (cached && cached.data.length >= 15 && Date.now() - cached.ts < 4 * 3600 * 1000) {
+      return res.json({ success: true, id, page, name: config.name, results: shuffleList(cached.data) });
+    }
+
+    // Parallel verified retrieval: Saavn official artist catalog + curated playlists + search page
+    const tasks = [];
+    if (page === 1 && config.artistId) {
+      tasks.push(
+        fetchSongsFromArtist(config.artistId, 50, 4500)
+          .then(list => list.map(s => ({ ...s, _catalogVerified: true })))
+          .catch(() => [])
+      );
+      for (const pid of (config.playlists || [])) {
+        tasks.push(
+          fetchSongsFromPlaylist(pid, 4500)
+            .then(list => list.map(s => ({ ...s, _catalogVerified: true })))
+            .catch(() => [])
+        );
+      }
+    }
+
+    for (const q of config.queries) {
+      tasks.push(
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=${page}&n=20&q=${encodeURIComponent(q)}`, 4500)
+          .then(d => (d?.results || []).map(formatSongItem).filter(Boolean))
+          .catch(() => [])
+      );
+    }
+
+    const allBatches = await Promise.all(tasks);
+
+    const seenIds = new Set();
+    const seenTitles = new Set();
+    const tamilVerified = [];
+    const otherLangVerified = [];
+
+    const ingestTrack = (s, trustCatalog = false) => {
+      if (!s || !s.playUrl || !s.id) return;
+      if (isTrackNoiseForTamilRadio(s)) return;
+      if (seenIds.has(s.id)) return;
+      const normTitle = normalizeSongTitle(s.title);
+      if (normTitle && seenTitles.has(normTitle)) return;
+
+      const haystack = `${s.artist || ''} ${s.music || ''} ${s.title || ''} ${s.album || ''}`.toLowerCase();
+      const isArtistMatch = config.matchTokens.some(tok => haystack.includes(tok));
+      if (!trustCatalog && !s._catalogVerified && !isArtistMatch) {
+        return; // STRICT: never pollute with unrelated artists or Hindi devotional tracks
+      }
+
+      const cleanSong = { ...s };
+      delete cleanSong._catalogVerified;
+      seenIds.add(cleanSong.id);
+      if (normTitle) seenTitles.add(normTitle);
+
+      const lang = (cleanSong.language || 'tamil').toLowerCase();
+      if (lang === 'tamil' || lang === '') {
+        tamilVerified.push(cleanSong);
+      } else if (isArtistMatch) {
+        otherLangVerified.push(cleanSong);
+      }
+    };
+
+    for (const batch of allBatches) {
+      (batch || []).forEach(s => ingestTrack(s, false));
+    }
+
+    // Blend trusted shelves & preloaded pools ONLY with strict verification (or explicit trustedShelf)
+    for (const shelf of (cachedCuratedShelves || [])) {
+      const isTrusted = (config.trustedShelves || []).includes(shelf.id);
+      (shelf.songs || []).forEach(s => ingestTrack(s, isTrusted));
+    }
+    for (const s of (preloaded2026Chartbusters || [])) {
+      ingestTrack(s, false);
+    }
+
+    // Prefer pure Tamil tracks of that composer first; include South Indian / multi-lang tracks of that composer only if Tamil pool < 25
+    const finalSongs = (tamilVerified.length >= 25
+      ? tamilVerified
+      : [...tamilVerified, ...otherLangVerified]
+    ).slice(0, 60);
+
+    if (finalSongs.length > 0) {
+      artistRadioCache.set(cacheKey, { ts: Date.now(), data: finalSongs });
+    }
+
+    res.json({ success: true, id, page, name: config.name, results: shuffleList(finalSongs) });
+  } catch (err) {
+    console.error('Artist radio error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Helper: Extract confirmed movie name from song album & title (handles compilations like "(From \"Movie\")")
+function extractConfirmedMovieName(rawMovie, rawTitle) {
+  const titleStr = (rawTitle || '').trim();
+  const movieStr = (rawMovie || '').trim();
+
+  // Check "(From "MovieName")" in title first, then album
+  const fromMatch = titleStr.match(/\(From\s*["']?([^"')]+)["']?\)/i)
+    || movieStr.match(/\(From\s*["']?([^"')]+)["']?\)/i);
+
+  let extracted = fromMatch ? fromMatch[1] : movieStr;
+  const fromCompilation = Boolean(fromMatch && fromMatch[1])
+    || /\b(melodies|vol\.?\s*\d+|collection|evergreen|greatest hits|best of|love notes|most played|top \d+|hits of|chartbusters|classic tamil|non-?stop)\b/i.test(movieStr);
+
+  extracted = (extracted || '')
+    .replace(/\s*[-–]\s*(Tamil|Telugu|Malayalam|Hindi|Original Motion Picture Soundtrack)\s*$/i, '')
+    .replace(/\s*\((Tamil|Telugu|Malayalam|Hindi|Original Motion Picture Soundtrack)\)/gi, '')
+    .replace(/\s*\[(Tamil|Telugu|Malayalam|Hindi)\]/gi, '')
+    .replace(/["']/g, '')
+    .trim();
+
+  return { cleanMovie: extracted, fromCompilation };
+}
+
+// Dedicated Movie-First Auto-Queue Endpoint:
+// Given a currently playing song's confirmed movie (album / title), returns:
+// 1) All remaining songs from that EXACT movie soundtrack FIRST
+// 2) Related songs by the same music director / primary artist AFTER
+const movieRelatedCache = new Map();
+
+app.get('/api/movie-related', async (req, res) => {
+  try {
+    const rawMovie = (req.query.movie || '').trim();
+    const rawTitle = (req.query.title || '').trim();
+    const albumId = (req.query.albumId || '').trim();
+    const artist = (req.query.artist || '').trim();
+    const excludeId = (req.query.songId || '').trim();
+
+    const { cleanMovie, fromCompilation } = extractConfirmedMovieName(rawMovie, rawTitle);
+    const primaryArtist = artist.split(/[,&]/)[0].trim();
+
+    const cacheKey = `${fromCompilation ? '' : albumId}|${cleanMovie.toLowerCase()}|${primaryArtist.toLowerCase()}`;
+    const cached = movieRelatedCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < 2 * 3600 * 1000) {
+      const filtered = cached.data.filter(s => s.id !== excludeId);
+      return res.json({ success: true, movie: cleanMovie, sameMovieCount: cached.sameMovieCount, results: filtered });
+    }
+
+    const sameMovieTracks = [];
+    const relatedTracks = [];
+    const seenIds = new Set();
+    const seenTitles = new Set();
+    if (excludeId) seenIds.add(excludeId);
+
+    const isInvalidAlbum = !cleanMovie || ['single', 'unknown', 'live 24x7 broadcast'].includes(cleanMovie.toLowerCase());
+    const normMovie = normalizeSongTitle(cleanMovie);
+
+    const isSameMovieCandidate = (s) => {
+      if (isInvalidAlbum || !normMovie) return false;
+      const { cleanMovie: candMovie } = extractConfirmedMovieName(s.album, s.title);
+      const candNorm = normalizeSongTitle(candMovie || s.album || '');
+      const origAlbNorm = normalizeSongTitle(s.album || '');
+      return Boolean(
+        (candNorm && (candNorm === normMovie || candNorm.includes(normMovie) || normMovie.includes(candNorm))) ||
+        (origAlbNorm && (origAlbNorm === normMovie || origAlbNorm.includes(normMovie) || normMovie.includes(origAlbNorm))) ||
+        doesMovieAlbumMatch(candMovie || s.album || '', cleanMovie)
+      );
+    };
+
+    const tasks = [];
+
+    // Task 1: Direct album tracks ONLY if albumId belongs to actual movie soundtrack (not a multi-movie compilation)
+    if (albumId && !fromCompilation) {
+      tasks.push(fetchSongsFromAlbum(albumId, null, 4500).catch(() => []));
+    } else if (!isInvalidAlbum) {
+      tasks.push(
+        requestSaavn(`__call=search.getAlbumResults&_format=json&cc=in&p=1&n=6&q=${encodeURIComponent(cleanMovie)}`, 4500)
+          .then(async (albRes) => {
+            const albums = albRes?.results || [];
+            const bestAlb = albums.find(a => {
+              const t = normalizeSongTitle(a.title || '');
+              return doesMovieAlbumMatch(a.title || '', cleanMovie) || t === normMovie || t.includes(normMovie) || normMovie.includes(t);
+            }) || albums[0];
+            const bestId = bestAlb?.albumid || bestAlb?.id;
+            if (bestId) return await fetchSongsFromAlbum(bestId, bestAlb, 4500);
+            return [];
+          })
+          .catch(() => [])
+      );
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    // Task 2: Direct song search by confirmed movie name
+    if (!isInvalidAlbum) {
+      tasks.push(
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=16&q=${encodeURIComponent(cleanMovie)}`, 4500)
+          .then(d => (d?.results || []).map(formatSongItem).filter(s => s && s.playUrl))
+          .catch(() => [])
+      );
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    // Task 3: Related composer / primary artist songs for seamless continuation after movie ends
+    if (primaryArtist) {
+      tasks.push(
+        requestSaavn(`__call=search.getResults&_format=json&cc=in&p=1&n=16&q=${encodeURIComponent(primaryArtist + ' tamil hits')}`, 4500)
+          .then(d => (d?.results || []).map(formatSongItem).filter(s => s && s.playUrl))
+          .catch(() => [])
+      );
+    } else {
+      tasks.push(Promise.resolve([]));
+    }
+
+    const [albumTracks, movieSearchTracks, artistTracks] = await Promise.all(tasks);
+
+    const pushUnique = (targetArr, s) => {
+      if (!s || !s.playUrl || seenIds.has(s.id)) return;
+      const nt = normalizeSongTitle(s.title);
+      if (nt && seenTitles.has(nt)) return;
+      seenIds.add(s.id);
+      if (nt) seenTitles.add(nt);
+      targetArr.push(s);
+    };
+
+    // 1. Add exact album tracks first
+    for (const s of albumTracks) {
+      pushUnique(sameMovieTracks, s);
+    }
+
+    // 2. Partition movieSearchTracks: matching movie -> sameMovieTracks, others -> relatedTracks
+    for (const s of movieSearchTracks) {
+      if (isSameMovieCandidate(s)) {
+        pushUnique(sameMovieTracks, s);
+      } else {
+        pushUnique(relatedTracks, s);
+      }
+    }
+
+    // 3. Check local preloaded pools (OM Chapter 1 / 2026 chartbusters / shelves) for exact movie & related hits
+    const localPool = [
+      ...(preloadedOmTracks || []),
+      ...(preloaded2026Chartbusters || []),
+      ...(cachedCuratedShelves || []).flatMap(sh => sh.songs || [])
+    ];
+    for (const s of localPool) {
+      if (isSameMovieCandidate(s)) {
+        pushUnique(sameMovieTracks, s);
+      }
+    }
+
+    // 4. Append artist / composer related tracks
+    for (const s of artistTracks) {
+      pushUnique(relatedTracks, s);
+    }
+
+    // 5. Fallback related tracks from local pool matching primaryArtist if upstream had few results
+    if (primaryArtist && relatedTracks.length < 10) {
+      const pLower = primaryArtist.toLowerCase();
+      for (const s of localPool) {
+        const hay = `${s.artist || ''} ${s.music || ''}`.toLowerCase();
+        if (hay.includes(pLower)) {
+          pushUnique(relatedTracks, s);
+        }
+      }
+    }
+
+    const combined = [...sameMovieTracks, ...relatedTracks].slice(0, 30);
+    if (combined.length > 0) {
+      movieRelatedCache.set(cacheKey, {
+        ts: Date.now(),
+        sameMovieCount: sameMovieTracks.length,
+        data: combined
+      });
+    }
+
+    res.json({
+      success: true,
+      movie: cleanMovie,
+      sameMovieCount: sameMovieTracks.length,
+      results: combined.filter(s => s.id !== excludeId)
+    });
+  } catch (err) {
+    console.error('Movie related API error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Lightweight CORS Image Proxy (for PiP canvas album artwork without CORS taint)

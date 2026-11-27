@@ -1,5 +1,5 @@
-// MUSIC - Service Worker v37 — Fix All 6 Elite Features (Modals, Mobile UI, Live FM Streams, PiP Fallback, Mood Multi-Query, Offline Tab)
-const CACHE_NAME = 'music-app-v37';
+// MUSIC - Service Worker v39 — Strict Composer 24x7 Radio, Confirmed Movie-First Up Next, Native Live FM Audio
+const CACHE_NAME = 'music-app-v39';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

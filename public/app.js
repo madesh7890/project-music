@@ -993,6 +993,21 @@ class MusicApp {
   initUIEvents() {
     // Play / Pause Toggle
     const handlePlayPause = () => {
+      if (this.currentSong?.isRadio && this.radioAudio) {
+        if (this.radioAudio.paused) {
+          this.radioAudio.play().then(() => {
+            this.isPlaying = true;
+            this.updatePlayStateUI();
+            this.loadFmRadioStations && this.loadFmRadioStations();
+          }).catch(() => {});
+        } else {
+          this.radioAudio.pause();
+          this.isPlaying = false;
+          this.updatePlayStateUI();
+          this.loadFmRadioStations && this.loadFmRadioStations();
+        }
+        return;
+      }
       if (!this.currentSong && this.queue.length > 0) {
         this.playSong(this.queue[0], this.queue, 0);
         return;
@@ -1066,11 +1081,16 @@ class MusicApp {
       const vol = parseFloat(e.target.value);
       this.audio.volume = vol;
       this.audio.muted = (vol === 0);
+      if (this.radioAudio) {
+        this.radioAudio.volume = vol;
+        this.radioAudio.muted = (vol === 0);
+      }
       this.updateVolumeIcon(vol);
     });
 
     this.volumeBtn.addEventListener('click', () => {
       this.audio.muted = !this.audio.muted;
+      if (this.radioAudio) this.radioAudio.muted = this.audio.muted;
       if (this.audio.muted) {
         this.volumeSlider.value = 0;
         this.updateVolumeIcon(0);
@@ -1269,9 +1289,11 @@ class MusicApp {
 
     // Play All from Library
     this.playAllCustomBtn.addEventListener('click', () => {
-      const list = this.currentViewMode === 'favorites' ? this.favorites : this.history;
+      const list = (this._currentLibrarySongs && this._currentLibrarySongs.length > 0)
+        ? this._currentLibrarySongs
+        : (this.currentViewMode === 'favorites' ? this.favorites : this.history);
       if (list && list.length > 0) {
-        this.playSong(list[0], list, 0);
+        this.playSong(list[0], list, 0, { preserveQueue: true });
         this.showToast(`🎶 Playing ${list.length} songs`);
       }
     });
@@ -1843,8 +1865,52 @@ class MusicApp {
     return rawUrl;
   }
 
-  playSong(song, newQueue = null, index = -1) {
+  _stopRadioAudio() {
+    this._fmSessionToken = (this._fmSessionToken || 0) + 1;
+    clearTimeout(this._fmFallbackTimer);
+    if (this.radioAudio) {
+      this.radioAudio.onplaying = null;
+      this.radioAudio.onerror = null;
+      if (!this.radioAudio.paused) this.radioAudio.pause();
+      if (this.radioAudio.getAttribute('src')) {
+        this.radioAudio.removeAttribute('src');
+        this.radioAudio.load();
+      }
+    }
+  }
+
+  _extractConfirmedMovieName(song) {
+    if (!song) return '';
+    const titleStr = (song.title || '').trim();
+    const albumStr = (song.album || '').trim();
+    const fromMatch = titleStr.match(/\(From\s*["']?([^"')]+)["']?\)/i)
+      || albumStr.match(/\(From\s*["']?([^"')]+)["']?\)/i);
+    let name = fromMatch ? fromMatch[1] : albumStr;
+    if (!fromMatch && /\b(melodies|vol\.?\s*\d+|collection|evergreen|greatest hits|best of|love notes|most played|top \d+|hits of|chartbusters|classic tamil|non-?stop)\b/i.test(albumStr)) {
+      return '';
+    }
+    name = (name || '')
+      .replace(/\s*[-–]\s*(Tamil|Telugu|Malayalam|Hindi|Original Motion Picture Soundtrack)\s*$/i, '')
+      .replace(/\s*\((Tamil|Telugu|Malayalam|Hindi|Original Motion Picture Soundtrack)\)/gi, '')
+      .replace(/\s*\[(Tamil|Telugu|Malayalam|Hindi)\]/gi, '')
+      .replace(/["']/g, '')
+      .trim();
+    if (!name || ['single', 'unknown', 'live 24x7 broadcast'].includes(name.toLowerCase())) return '';
+    return name;
+  }
+
+  _isSameMovieTrack(a, b) {
+    const mA = this._extractConfirmedMovieName(a).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const mB = this._extractConfirmedMovieName(b).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!mA || !mB) return false;
+    return mA === mB || mA.includes(mB) || mB.includes(mA);
+  }
+
+  playSong(song, newQueue = null, index = -1, options = {}) {
     if (!song) return;
+
+    // Stop Live FM audio element cleanly so background stream never plays over tracks
+    this._stopRadioAudio();
 
     if (newQueue) {
       this.queue = [...newQueue];
@@ -1855,7 +1921,11 @@ class MusicApp {
     }
 
     this.currentSong = song;
-    this.currentFmStation = null;
+    if (!song._artistRadioId) {
+      this._activeArtistRadioId = null;
+      this._artistRadioPage = 1;
+      this.currentFmStation = null;
+    }
 
     let playFormat = this.currentFormat;
     if (this._isMobileDevice) {
@@ -1987,6 +2057,20 @@ class MusicApp {
     if (this.isCinemaModeActive) {
       this._updateCinemaContent(song);
     }
+
+    // ── Movie-First Auto-Queue ──
+    // Whenever a track with a confirmed movie plays (and next track is missing OR from a different movie in a mixed shelf/list),
+    // automatically pull remaining tracks of THAT confirmed movie + related hits and queue them right next!
+    if (!song.isRadio && !song._artistRadioId && this.isSmartRadioActive && !options.preserveQueue) {
+      const nextTrack = this.queue[this.queueIndex + 1];
+      const confirmedMovie = this._extractConfirmedMovieName(song);
+      const needsMovieUpNext = Boolean(confirmedMovie && (!nextTrack || !this._isSameMovieTrack(song, nextTrack)));
+      if (needsMovieUpNext) {
+        this.fetchSmartRadioRecommendations(song, true, { insertNext: true });
+      } else if (this.queue.length <= 1 || this.queueIndex >= this.queue.length - 1) {
+        this.fetchSmartRadioRecommendations(song, true, { insertNext: false });
+      }
+    }
   }
 
   updateActiveSongCards() {
@@ -1999,42 +2083,90 @@ class MusicApp {
     });
   }
 
-  playNext() {
+  async playNext() {
+    // If on a live FM radio broadcast, Next switches to the next live FM channel
+    if (this.currentSong?.isRadio && this.currentFmStation?.type === 'live_stream' && this.fmStations?.length > 1) {
+      const liveList = this.fmStations.filter(s => s.type === 'live_stream');
+      const idx = liveList.findIndex(s => s.id === this.currentFmStation.id);
+      if (liveList.length > 0) {
+        const nextSt = liveList[(idx + 1) % liveList.length];
+        this.playFmStation(nextSt);
+        return;
+      }
+    }
+
+    // If movie/artist recommendations for the current song are currently loading, wait so Next gets the movie-related song immediately
+    if (this._fetchingSmartRecs) {
+      try { await this._fetchingSmartRecs; } catch (e) {}
+    }
+
     if (this.queue.length === 0) {
-      // Smart Radio: fetch more songs when queue is empty
       if (this.isSmartRadioActive && this.currentSong) {
-        this.fetchSmartRadioRecommendations(this.currentSong);
+        const prevLen = this.queue.length;
+        await this.fetchSmartRadioRecommendations(this.currentSong, false);
+        if (this.queue.length > prevLen) {
+          this.queueIndex = prevLen;
+          this.playSong(this.queue[this.queueIndex], null, -1, { preserveQueue: true });
+        }
       }
       return;
     }
 
     let nextIdx;
     if (this.isShuffled) {
-      nextIdx = Math.floor(Math.random() * this.queue.length);
+      if (this.queue.length > 1) {
+        do {
+          nextIdx = Math.floor(Math.random() * this.queue.length);
+        } while (nextIdx === this.queueIndex);
+      } else {
+        nextIdx = 1; // force fetch below instead of repeating single song
+      }
     } else {
       nextIdx = this.queueIndex + 1;
     }
 
-    // At end of queue: trigger Smart Radio before wrapping
+    // At end of queue: AWAIT movie/artist recommendations BEFORE wrapping so it never repeats 1 song!
     if (nextIdx >= this.queue.length) {
-      if (this.isSmartRadioActive && this.currentSong) {
-        this.fetchSmartRadioRecommendations(this.currentSong);
+      if (this.currentSong && !this.currentSong.isRadio) {
+        const prevLen = this.queue.length;
+        await this.fetchSmartRadioRecommendations(this.currentSong, false);
+        if (this.queue.length > prevLen) {
+          nextIdx = prevLen;
+          this.queueIndex = nextIdx;
+          this.playSong(this.queue[this.queueIndex], null, -1, { preserveQueue: true });
+          return;
+        }
       }
-      nextIdx = this.repeatMode !== 'off' ? 0 : this.queue.length - 1;
+      if (this.queue.length > 1) {
+        nextIdx = this.repeatMode !== 'off'
+          ? (this.queueIndex + 1) % this.queue.length
+          : this.queue.length - 1;
+      } else {
+        nextIdx = 0;
+      }
     }
 
     this.queueIndex = nextIdx;
-    this.playSong(this.queue[this.queueIndex]);
+    this.playSong(this.queue[this.queueIndex], null, -1, { preserveQueue: true });
   }
 
   playPrev() {
+    if (this.currentSong?.isRadio && this.currentFmStation?.type === 'live_stream' && this.fmStations?.length > 1) {
+      const liveList = this.fmStations.filter(s => s.type === 'live_stream');
+      const idx = liveList.findIndex(s => s.id === this.currentFmStation.id);
+      if (liveList.length > 0) {
+        const prevSt = liveList[(idx - 1 + liveList.length) % liveList.length];
+        this.playFmStation(prevSt);
+        return;
+      }
+    }
     if (this.queue.length === 0) return;
     if (this.audio.currentTime > 3) {
       this.audio.currentTime = 0;
       return;
     }
     this.queueIndex = (this.queueIndex - 1 + this.queue.length) % this.queue.length;
-    this.playSong(this.queue[this.queueIndex]);
+    this.playSong(this.queue[this.queueIndex], null, -1, { preserveQueue: true });
   }
 
   addToQueue(song) {
@@ -3127,29 +3259,111 @@ class MusicApp {
     this.fetchSmartRadioRecommendations(song, true);
   }
 
-  async fetchSmartRadioRecommendations(currentSong, isStartOfRadio = false) {
-    if (!this.isSmartRadioActive || !currentSong) return;
-
-    const artistQuery = (currentSong.artist || '').split(/[,&]/)[0].trim();
-    const query = artistQuery ? `${artistQuery} Hits` : (currentSong.album || currentSong.title);
-    if (!isStartOfRadio) {
-      this.showToast(`📻 Auto DJ: Fetching more songs for continuous mix...`);
+  async fetchSmartRadioRecommendations(currentSong, isStartOfRadio = false, { insertNext = false } = {}) {
+    if (!currentSong || currentSong.isRadio) return;
+    if (this._fetchingSmartRecs) {
+      try { await this._fetchingSmartRecs; } catch (e) {}
+      return;
     }
 
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.success && data.results && data.results.length > 0) {
-        // Filter out songs already in queue, add up to 15 new ones
-        const existing = new Set(this.queue.map(s => s.id));
-        const newSongs = data.results.filter(s => !existing.has(s.id)).slice(0, 15);
-        newSongs.forEach(s => this.queue.push(s));
-        this.renderQueueDrawer();
-        this.showToast(`📻 Radio Active: ${newSongs.length} similar songs queued`);
+    const doFetch = async () => {
+      try {
+        // 1. If in a 24x7 Composer Radio channel, queue more songs of THAT composer (with pagination)
+        if (this._activeArtistRadioId && currentSong._artistRadioId === this._activeArtistRadioId) {
+          const nextPage = isStartOfRadio ? (this._artistRadioPage || 1) : ((this._artistRadioPage || 1) + 1);
+          const res = await fetch(`/api/radio/artist/${encodeURIComponent(this._activeArtistRadioId)}?page=${nextPage}`);
+          const data = await res.json();
+          if (this.currentSong?.id !== currentSong.id) return;
+
+          if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+            this._artistRadioPage = nextPage;
+            const existing = new Set(this.queue.map(s => s.id));
+            let newSongs = data.results
+              .filter(s => !existing.has(s.id))
+              .slice(0, 25)
+              .map(s => ({ ...s, _artistRadioId: this._activeArtistRadioId }));
+            // If all tracks on page were already played before, enqueue shuffled composer batch excluding active track
+            if (newSongs.length === 0 && nextPage > 1) {
+              newSongs = data.results
+                .filter(s => s.id !== currentSong.id)
+                .slice(0, 15)
+                .map(s => ({ ...s, _artistRadioId: this._activeArtistRadioId }));
+            }
+            if (newSongs.length > 0) {
+              newSongs.forEach(s => this.queue.push(s));
+              this.renderQueueDrawer();
+              if (!isStartOfRadio) {
+                this.showToast(`📻 Queued ${newSongs.length} more ${data.name || 'artist'} tracks`);
+              }
+            }
+          }
+          return;
+        }
+
+        // 2. Movie-First Auto-Queue: Fetch confirmed movie's remaining songs FIRST + related tracks
+        const confirmedMovie = this._extractConfirmedMovieName(currentSong);
+        const movieName = confirmedMovie || (currentSong.album || '').trim();
+        const albumId = (currentSong.albumId || '').trim();
+        const artistQuery = (currentSong.music || currentSong.artist || '').split(/[,&]/)[0].trim();
+
+        if (!isStartOfRadio && confirmedMovie) {
+          this.showToast(`🎬 Loading songs from "${confirmedMovie}" & related hits...`);
+        }
+
+        const params = new URLSearchParams({
+          movie: movieName,
+          title: currentSong.title || '',
+          albumId: albumId,
+          artist: artistQuery,
+          songId: currentSong.id || ''
+        });
+
+        const res = await fetch(`/api/movie-related?${params.toString()}`);
+        const data = await res.json();
+        // Guard against race if user switched track before response returned
+        if (this.currentSong?.id !== currentSong.id) return;
+
+        if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+          if (insertNext) {
+            const incomingIds = new Set(data.results.map(s => s.id));
+            incomingIds.add(currentSong.id);
+            const playedHead = this.queue.slice(0, this.queueIndex + 1);
+            const playedIds = new Set(playedHead.map(s => s.id));
+            const newSongs = data.results.filter(s => !playedIds.has(s.id)).slice(0, 20);
+            const remainingTail = this.queue
+              .slice(this.queueIndex + 1)
+              .filter(s => !incomingIds.has(s.id));
+
+            if (newSongs.length > 0) {
+              this.queue = [...playedHead, ...newSongs, ...remainingTail];
+              this.renderQueueDrawer();
+              if (data.sameMovieCount > 0 && confirmedMovie) {
+                this.showToast(`🎬 Up Next: "${confirmedMovie}" songs & related hits`);
+              }
+            }
+          } else {
+            const existing = new Set(this.queue.map(s => s.id));
+            const newSongs = data.results.filter(s => !existing.has(s.id)).slice(0, 20);
+            if (newSongs.length > 0) {
+              newSongs.forEach(s => this.queue.push(s));
+              this.renderQueueDrawer();
+              if (data.sameMovieCount > 0 && confirmedMovie) {
+                this.showToast(`🎬 Queued ${confirmedMovie} soundtrack & related hits (${newSongs.length} songs)`);
+              } else if (!isStartOfRadio) {
+                this.showToast(`📻 Auto DJ: ${newSongs.length} related songs queued`);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Smart radio fetch error:', e);
       }
-    } catch (e) {
-      console.warn('Smart radio fetch error:', e);
-    }
+    };
+
+    this._fetchingSmartRecs = doFetch().finally(() => {
+      this._fetchingSmartRecs = null;
+    });
+    await this._fetchingSmartRecs;
   }
 
   // ==================================================================================
@@ -3752,11 +3966,13 @@ class MusicApp {
       });
 
       navigator.mediaSession.setActionHandler('play', () => {
-        this.audio.play();
+        const el = (this.currentSong?.isRadio && this.radioAudio) ? this.radioAudio : this.audio;
+        el.play();
         navigator.mediaSession.playbackState = 'playing';
       });
       navigator.mediaSession.setActionHandler('pause', () => {
-        this.audio.pause();
+        const el = (this.currentSong?.isRadio && this.radioAudio) ? this.radioAudio : this.audio;
+        el.pause();
         navigator.mediaSession.playbackState = 'paused';
       });
       navigator.mediaSession.setActionHandler('nexttrack', () => this.playNext());
@@ -3774,18 +3990,21 @@ class MusicApp {
       });
       navigator.mediaSession.playbackState = 'playing';
 
-      // Keep position state in sync for lock screen scrubber
-      this.audio.addEventListener('timeupdate', () => {
-        if ('setPositionState' in navigator.mediaSession && this.audio.duration) {
-          try {
-            navigator.mediaSession.setPositionState({
-              duration: this.audio.duration,
-              playbackRate: this.audio.playbackRate || 1,
-              position: this.audio.currentTime
-            });
-          } catch (e) {}
-        }
-      }, { once: false });
+      // Keep position state in sync for lock screen scrubber (bind once)
+      if (!this._mediaSessionPosBound) {
+        this._mediaSessionPosBound = true;
+        this.audio.addEventListener('timeupdate', () => {
+          if ('setPositionState' in navigator.mediaSession && this.audio.duration && isFinite(this.audio.duration)) {
+            try {
+              navigator.mediaSession.setPositionState({
+                duration: this.audio.duration,
+                playbackRate: this.audio.playbackRate || 1,
+                position: this.audio.currentTime
+              });
+            } catch (e) {}
+          }
+        });
+      }
 
     } catch (e) {
       console.warn('MediaSession update failed:', e);
@@ -4396,11 +4615,7 @@ class MusicApp {
 
     if (playPauseBtn) {
       playPauseBtn.addEventListener('click', () => {
-        if (this.isPlaying) {
-          this.audio.pause();
-        } else {
-          this.audio.play();
-        }
+        document.getElementById('playPauseBtn')?.click();
       });
     }
 
@@ -5149,7 +5364,7 @@ class MusicApp {
           const res = await fetch(`/api/mood/${vibe}`);
           const data = await res.json();
           if (data.success && Array.isArray(data.results) && data.results.length > 0) {
-            this.playSong(data.results[0], data.results, 0);
+            this.playSong(data.results[0], data.results, 0, { preserveQueue: true });
             this.showToast(`✨ Playing ${data.title || vibeName} (${data.results.length} songs)`);
 
             const searchInput = document.getElementById('searchInput');
@@ -5195,7 +5410,7 @@ class MusicApp {
       miniPlayBtn.addEventListener('click', () => document.getElementById('playPauseBtn')?.click());
     }
     if (miniNextBtn) {
-      miniNextBtn.addEventListener('click', () => this.nextSong && this.nextSong());
+      miniNextBtn.addEventListener('click', () => this.playNext && this.playNext());
     }
     if (miniCloseBtn) {
       miniCloseBtn.addEventListener('click', () => {
@@ -5633,6 +5848,15 @@ class MusicApp {
   initLiveTamilFm() {
     this.fmStations = [];
     this.currentFmStation = null;
+    this._activeArtistRadioId = null;
+    this._fmFallbackTimer = null;
+    this.radioAudio = document.getElementById('radioAudioElement') || new Audio();
+
+    if (this.volumeSlider) {
+      this.volumeSlider.addEventListener('input', () => {
+        if (this.radioAudio) this.radioAudio.volume = parseFloat(this.volumeSlider.value) || 0.85;
+      });
+    }
 
     const radioNavBtn = document.getElementById('sidebarRadioBtn');
     const libTabRadio = document.getElementById('libTabRadio');
@@ -5700,38 +5924,79 @@ class MusicApp {
     });
   }
 
+  _updateLiveRadioPlayerUI(fakeSong) {
+    if (this.playerThumb) this.playerThumb.src = fakeSong.image;
+    if (this.playerTitle) this.playerTitle.textContent = fakeSong.title;
+    if (this.playerArtist) this.playerArtist.textContent = fakeSong.artist;
+    if (this.sidebarCover) this.sidebarCover.src = fakeSong.image;
+    if (this.sidebarTitle) this.sidebarTitle.textContent = fakeSong.title;
+    if (this.sidebarArtist) this.sidebarArtist.textContent = fakeSong.artist;
+    if (this.sheetArtwork) this.sheetArtwork.src = fakeSong.image;
+    if (this.sheetSongTitle) this.sheetSongTitle.textContent = fakeSong.title;
+    if (this.sheetSongArtist) this.sheetSongArtist.textContent = fakeSong.artist;
+    if (this.sheetMovieTitle) this.sheetMovieTitle.textContent = 'LIVE TAMIL FM';
+    if (this.currentTimeText) this.currentTimeText.textContent = 'LIVE';
+    if (this.totalDurationText) this.totalDurationText.textContent = '24/7';
+    if (this.progressBar) this.progressBar.style.width = '100%';
+    this.updateMediaSession && this.updateMediaSession(fakeSong);
+    this._updateFloatingMiniWidget && this._updateFloatingMiniWidget();
+    this._updateCarModeUI && this._updateCarModeUI(fakeSong);
+  }
+
   async playFmStation(station) {
+    this._stopRadioAudio();
+    const sessionToken = this._fmSessionToken;
+
     // Toggle pause if tapping currently playing station
-    if (this.currentFmStation?.id === station.id && this.isPlaying && this.audio && !this.audio.paused) {
-      this.audio.pause();
+    const activeAudio = station.type === 'live_stream' ? this.radioAudio : this.audio;
+    if (this.currentFmStation?.id === station.id && this.isPlaying && activeAudio && !activeAudio.paused) {
+      activeAudio.pause();
       this.isPlaying = false;
       this.updatePlayStateUI();
       this.loadFmRadioStations();
       return;
     }
 
-    // 1. Artist 24x7 Radio (High-yield 320k Saavn queue + Auto DJ Radio)
-    if (station.type === 'artist_radio' && station.query) {
-      this.showToast(`📻 Tuning in to ${station.name} (320k Auto DJ)...`);
+    // 1. Artist 24x7 Radio (Full Discography Collection via /api/radio/artist/:id)
+    if (station.type === 'artist_radio') {
+      this.showToast(`📻 Loading full ${station.name} collection...`);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(station.query)}`);
+        const res = await fetch(`/api/radio/artist/${encodeURIComponent(station.id)}?page=1`);
         const data = await res.json();
+        if (sessionToken !== this._fmSessionToken) return;
         if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+          // Never stay stuck on Repeat One when launching an endless 24x7 radio!
+          if (this.repeatMode === 'one') {
+            this.repeatMode = 'all';
+            this.repeatBtn?.classList.remove('active');
+            this.sheetRepeatBtn?.classList.remove('active');
+            this.repeatOneBadge?.classList.remove('show');
+            this.sheetRepeatBadge?.classList.remove('show');
+          }
           this.setSmartRadioActive && this.setSmartRadioActive(true, false);
-          this.playSong(data.results[0], data.results, 0);
+          this._activeArtistRadioId = station.id;
+          this._artistRadioPage = 1;
           this.currentFmStation = station;
+          const taggedTracks = data.results.map(t => ({ ...t, _artistRadioId: station.id }));
+          this.playSong(taggedTracks[0], taggedTracks, 0, { preserveQueue: true });
+          this.currentFmStation = station;
+          this._activeArtistRadioId = station.id;
+          this.showToast(`📻 ${station.name}: ${taggedTracks.length} songs queued!`);
           this.loadFmRadioStations();
           return;
         }
       } catch (e) {
         console.warn('Artist radio fetch failed:', e);
       }
-      this.showToast('Unable to load artist radio tracks.');
+      this.showToast('Unable to load artist radio tracks. Please try again.');
       return;
     }
 
-    // 2. Live Broadcast Stream (Verified HTTPS CORS * FM Streams)
+    // 2. Live Broadcast Stream (Dedicated native radioAudio element — NO WebAudio CORS mute)
+    if (this.audio && !this.audio.paused) this.audio.pause();
+    this._activeArtistRadioId = null;
     this.currentFmStation = station;
+
     const fakeSong = {
       id: 'radio_' + station.id,
       title: station.name,
@@ -5746,42 +6011,68 @@ class MusicApp {
     this.queue = [fakeSong];
     this.queueIndex = 0;
 
-    if (!this.isDspInit) this.setupAudioDSP();
-    if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume().catch(() => {});
-    }
+    let started = false;
+    let fallbackLaunched = false;
 
-    if (this.audio) {
-      this.audio.crossOrigin = 'anonymous';
-      this.audio.src = station.streamUrl;
-      this.audio.load();
-      this.showToast(`📻 Connecting to ${station.name} (Live)...`);
-      this.audio.play().then(() => {
+    const launchStationFallback = async (reason) => {
+      if (fallbackLaunched || started) return;
+      if (sessionToken !== this._fmSessionToken || this.currentFmStation?.id !== station.id) return;
+      fallbackLaunched = true;
+      this._stopRadioAudio();
+
+      const q = station.fallbackQuery || 'tamil hits';
+      console.warn(`Live FM fallback triggered for ${station.name}:`, reason);
+      this.showToast(`📻 Live broadcast busy — playing ${station.name} 320k FM Hits!`);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.results) && data.results.length > 0) {
+          this.setSmartRadioActive && this.setSmartRadioActive(true, false);
+          this.playSong(data.results[0], data.results, 0, { preserveQueue: true });
+          this.currentFmStation = station;
+          this.loadFmRadioStations();
+        }
+      } catch (e) {}
+    };
+
+    if (this.radioAudio) {
+      this.radioAudio.volume = parseFloat(this.volumeSlider?.value) || 0.90;
+      this.radioAudio.src = station.streamUrl;
+      this.radioAudio.load();
+      this._updateLiveRadioPlayerUI(fakeSong);
+      this.showToast(`📡 Connecting live to ${station.name}...`);
+
+      this.radioAudio.onplaying = () => {
+        if (fallbackLaunched || sessionToken !== this._fmSessionToken) {
+          this._stopRadioAudio();
+          return;
+        }
+        started = true;
+        clearTimeout(this._fmFallbackTimer);
         this.isPlaying = true;
         this.updatePlayStateUI();
-        if (this.playerThumb) this.playerThumb.src = fakeSong.image;
-        if (this.playerTitle) this.playerTitle.textContent = fakeSong.title;
-        if (this.playerArtist) this.playerArtist.textContent = fakeSong.artist;
-        if (this.sidebarCover) this.sidebarCover.src = fakeSong.image;
-        if (this.sidebarTitle) this.sidebarTitle.textContent = fakeSong.title;
-        if (this.sidebarArtist) this.sidebarArtist.textContent = fakeSong.artist;
-        if (this.sheetArtwork) this.sheetArtwork.src = fakeSong.image;
-        if (this.sheetSongTitle) this.sheetSongTitle.textContent = fakeSong.title;
-        if (this.sheetSongArtist) this.sheetSongArtist.textContent = fakeSong.artist;
-        this.updateMediaSession && this.updateMediaSession(fakeSong);
-        this._updateFloatingMiniWidget && this._updateFloatingMiniWidget();
+        this._updateLiveRadioPlayerUI(fakeSong);
         this.loadFmRadioStations();
-      }).catch(err => {
-        console.warn('Direct FM stream failed, trying CORS proxy:', err.message);
-        this.audio.src = `/api/proxy-audio?url=${encodeURIComponent(station.streamUrl)}`;
-        this.audio.load();
-        this.audio.play().then(() => {
-          this.isPlaying = true;
-          this.updatePlayStateUI();
-          this.loadFmRadioStations();
-        }).catch(() => {
-          this.showToast('FM station temporarily unreachable. Try another station!');
-        });
+        this.showToast(`📻 LIVE ON AIR: ${station.name}`);
+      };
+      this.radioAudio.onerror = () => {
+        if (!started && sessionToken === this._fmSessionToken) {
+          clearTimeout(this._fmFallbackTimer);
+          launchStationFallback('stream_error');
+        }
+      };
+
+      // If remote Shoutcast takes > 6.5s to start playing, cleanly stop stream & launch curated 320k hits fallback
+      this._fmFallbackTimer = setTimeout(() => {
+        if (!started && sessionToken === this._fmSessionToken && this.currentFmStation?.id === station.id) {
+          launchStationFallback('connect_timeout');
+        }
+      }, 6500);
+
+      this.radioAudio.play().catch(err => {
+        if (!started) {
+          console.warn('Radio play() rejected:', err.message);
+        }
       });
     }
   }
@@ -5808,7 +6099,7 @@ class MusicApp {
       btnPlayAllSearch.addEventListener('click', () => {
         const tracks = this.searchResults || this._lastSearchSongs || [];
         if (tracks.length === 0) return;
-        this.playSong(tracks[0], tracks, 0);
+        this.playSong(tracks[0], tracks, 0, { preserveQueue: true });
         this.showToast(`▶ Playing all ${tracks.length} tracks`);
       });
     }
